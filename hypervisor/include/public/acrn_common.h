@@ -582,6 +582,7 @@ struct pm_s_state_data {
 	struct acpi_generic_address pm1b_evt;
 	struct acpi_generic_address pm1a_cnt;
 	struct acpi_generic_address pm1b_cnt;
+	struct acpi_generic_address pm_tmr;
 	struct acpi_sx_pkg s3_pkg;
 	struct acpi_sx_pkg s5_pkg;
 	uint32_t *wake_vector_32;

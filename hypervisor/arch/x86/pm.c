@@ -37,6 +37,13 @@ struct pm_s_state_data host_pm_s_state = {
 		.access_size = PM1B_CNT_ACCESS_SIZE,
 		.address = PM1B_CNT_ADDRESS
 	},
+	.pm_tmr = {
+		.space_id = SPACE_SYSTEM_IO,
+		.bit_width = 0x20U,
+		.bit_offset = 0U,
+		.access_size = 3U,
+		.address = 0x408UL
+	},
 	.s3_pkg = {
 		.val_pm1a = S3_PKG_VAL_PM1A,
 		.val_pm1b = S3_PKG_VAL_PM1B,

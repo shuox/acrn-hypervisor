@@ -99,11 +99,24 @@ static inline void init_cx_port(struct acrn_vm *vm)
 	}
 }
 
+static inline void init_pmtmr_port(struct vm *vm)
+{
+	uint8_t io_len[5] = {0, 1, 2, 4, 8};
+	struct pm_s_state_data *sx_data = (struct pm_s_state_data *)&host_pm_s_state;
+
+	if (sx_data->pm_tmr.space_id == SPACE_SYSTEM_IO) {
+		uint16_t port = (uint16_t)sx_data->pm_tmr.address;
+		uint32_t len = io_len[sx_data->pm_tmr.access_size];
+		allow_guest_pio_access(vm, port, len);
+	}
+}
+
 void vm_setup_cpu_state(struct acrn_vm *vm)
 {
 	vm_setup_cpu_px(vm);
 	vm_setup_cpu_cx(vm);
 	init_cx_port(vm);
+	init_pmtmr_port(vm);
 }
 
 /* This function is for power management Sx state implementation,
