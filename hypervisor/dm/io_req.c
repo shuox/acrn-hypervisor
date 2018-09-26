@@ -320,6 +320,8 @@ static void dm_emulate_io_complete(struct acrn_vcpu *vcpu)
 			}
 
 		}
+	} else {
+		pr_err("%s: has incompleted ioreq. vcpu[%d]", __func__, vcpu->vcpu_id);
 	}
 }
 
@@ -724,3 +726,104 @@ void unregister_mmio_emulation_handler(struct acrn_vm *vm,
 	}
 	spinlock_release(&vm->emul_mmio_lock);
 }
+
+static void local_get_req_info_(struct vhm_request *req, int *id, char *type,
+	char *state, char *dir, uint64_t *addr, uint64_t *val)
+{
+	(void)strncpy_s(dir, 16U, "NONE", 16U);
+	*addr = 0UL;
+	*val = 0UL;
+	*id = req->client;
+
+	switch (req->type) {
+	case REQ_PORTIO:
+		(void)strncpy_s(type, 16U, "PORTIO", 16U);
+		if (req->reqs.pio.direction == REQUEST_READ) {
+			(void)strncpy_s(dir, 16U, "READ", 16U);
+		} else {
+			(void)strncpy_s(dir, 16U, "WRITE", 16U);
+		}
+		*addr = req->reqs.pio.address;
+		*val = req->reqs.pio.value;
+		break;
+	case REQ_MMIO:
+	case REQ_WP:
+		(void)strncpy_s(type, 16U, "MMIO/WP", 16U);
+		if (req->reqs.mmio.direction == REQUEST_READ) {
+			(void)strncpy_s(dir, 16U, "READ", 16U);
+		} else {
+			(void)strncpy_s(dir, 16U, "WRITE", 16U);
+		}
+		*addr = req->reqs.mmio.address;
+		*val = req->reqs.mmio.value;
+		break;
+		break;
+	default:
+		(void)strncpy_s(type, 16U, "UNKNOWN", 16U);
+	}
+
+	switch (req->processed) {
+	case REQ_STATE_COMPLETE:
+		(void)strncpy_s(state, 16U, "COMPLETE", 16U);
+		break;
+	case REQ_STATE_PENDING:
+		(void)strncpy_s(state, 16U, "PENDING", 16U);
+		break;
+	case REQ_STATE_PROCESSING:
+		(void)strncpy_s(state, 16U, "PROCESS", 16U);
+		break;
+	case REQ_STATE_FREE:
+		(void)strncpy_s(state, 16U, "FREE", 16U);
+		break;
+	default:
+		(void)strncpy_s(state, 16U,  "UNKNOWN", 16U);
+	}
+}
+
+void get_req_info(char *str_arg, int str_max)
+{
+	char *str = str_arg;
+	uint32_t i;
+	int32_t len, size = str_max, client_id;
+	union vhm_request_buffer *req_buf;
+	struct vhm_request *req;
+	char type[16], state[16], dir[16];
+	uint64_t addr, val;
+	struct acrn_vm *vm;
+
+	len = snprintf(str, size,
+		"\r\nVM\tVCPU\tCID\tTYPE\tSTATE\tDIR\tADDR\t\t\tVAL");
+	size -= len;
+	str += len;
+
+	for (i = 0U; i < CONFIG_MAX_VM_NUM; i++) {
+		vm = get_vm_from_vmid(i);
+		if (vm == NULL) {
+			continue;
+		}
+		req_buf = (union vhm_request_buffer *)vm->sw.io_shared_page;
+		if (req_buf != NULL) {
+			for (i = 0U; i < VHM_REQUEST_MAX; i++) {
+				req = req_buf->req_queue + i;
+				if (req->processed != REQ_STATE_FREE) {
+					local_get_req_info_(req, &client_id, type,
+							state, dir, &addr, &val);
+					len = snprintf(str, size,
+							"\r\n%d\t%d\t%d\t%s\t%s\t%s",
+							vm->vm_id, i, client_id, type,
+							state, dir);
+					size -= len;
+					str += len;
+
+					len = snprintf(str, size,
+							"\t0x%016llx\t0x%016llx",
+							addr, val);
+					size -= len;
+					str += len;
+				}
+			}
+		}
+	}
+	snprintf(str, size, "\r\n");
+}
+

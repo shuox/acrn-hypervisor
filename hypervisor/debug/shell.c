@@ -570,14 +570,20 @@ static int32_t shell_cmd_help(__unused int32_t argc, __unused char **argv)
 	return 0;
 }
 
+void get_req_info(char *str_arg, int str_max);
 static int32_t shell_version(__unused int32_t argc, __unused char **argv)
 {
-	char temp_str[MAX_STR_SIZE];
+	char temp_str[MAX_STR_SIZE*16];
 
 	snprintf(temp_str, MAX_STR_SIZE, "HV %s-%s-%s %s (daily tag: %s) %s@%s build by %s%s\nAPI %u.%u\r\n",
 		HV_FULL_VERSION, HV_BUILD_TIME, HV_BUILD_VERSION, HV_BUILD_TYPE, HV_DAILY_TAG, HV_BUILD_SCENARIO,
 		HV_BUILD_BOARD, HV_BUILD_USER, HV_CONFIG_TOOL, HV_API_MAJOR_VERSION, HV_API_MINOR_VERSION);
 	shell_puts(temp_str);
+
+	pr_warn("lskakaxi, dump ioreq buffer");
+	get_req_info(temp_str, PAGE_SIZE);
+	shell_puts(temp_str);
+ 
 
 	return 0;
 }
