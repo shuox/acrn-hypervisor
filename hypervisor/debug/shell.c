@@ -1286,18 +1286,19 @@ static int32_t shell_cpuid(int32_t argc, char **argv)
 	return 0;
 }
 
+void get_req_info(char *str_arg, int str_max);
 static int32_t shell_trigger_crash(int32_t argc, char **argv)
 {
-	char str[MAX_STR_SIZE] = {0};
+	char temp_str[MAX_STR_SIZE*16];
+	argc = argc;
+	argv = argv;
 
-	(void)argc;
-	(void)argv;
-	snprintf(str, MAX_STR_SIZE, "trigger crash, divide by 0 ...\r\n");
-	shell_puts(str);
-
-	asm("movl $0x1, %eax");
-	asm("movl $0x0, %ecx");
-	asm("idiv  %ecx");
+	if (temp_str == NULL) {
+		return -ENOMEM;
+	}
+	pr_warn("lskakaxi, dump ioreq buffer");
+	get_req_info(temp_str, PAGE_SIZE);
+	shell_puts(temp_str);
 
 	return 0;
 }
