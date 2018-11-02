@@ -43,6 +43,9 @@
 /* All dynamic table entry no. */
 #define NHLT_ENTRY_NO		8
 
+#define ACPI_OPREGION_SIZE	0x3000
+#define ACPI_OPREGION_GPA 	(0xe0000000 - ACPI_OPREGION_SIZE)
+
 void acpi_table_enable(int num);
 uint32_t get_acpi_base(void);
 uint32_t get_acpi_table_length(void);
