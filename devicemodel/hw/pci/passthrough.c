@@ -89,6 +89,13 @@ struct mmio_map {
 	size_t size;
 };
 
+/* ACPI OpRegion for GPU passthrough */
+#define PCIR_ASLS_CTL			0xFC
+
+static bool opregion_mapped = false;
+static uint32_t opregion_hpa = 0;
+
+
 struct passthru_dev {
 	struct pci_vdev *dev;
 	struct pcibar bar[PCI_BARMAX + 1];
@@ -1079,6 +1086,14 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (error < 0)
 		goto done;
 
+	/* read opregion start address when GPU passthrough is enabled */
+	if (ptdev->phys_bdf == PCI_BDF_GPU) {
+		opregion_hpa = read_config(ptdev->phys_dev, PCIR_ASLS_CTL, 4);
+		vm_map_ptdev_mmio(ctx, 0, 2, 0, ACPI_OPREGION_GPA,
+				ACPI_OPREGION_SIZE, ALIGN_DOWN(opregion_hpa, 4096));
+		opregion_mapped = true;
+	}
+
 	/* If ptdev support MSI/MSIX, stop here to skip virtual INTx setup.
 	 * Forge Guest to use MSI/MSIX in this case to mitigate IRQ sharing
 	 * issue
@@ -1158,6 +1173,12 @@ passthru_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 				ptdev->sel.dev, ptdev->sel.func,
 				dev->bar[i].addr, ptdev->bar[i].size,
 				ptdev->bar[i].addr);
+	}
+
+	if (ptdev->phys_bdf == PCI_BDF_GPU && opregion_mapped) {
+		vm_unmap_ptdev_mmio(ctx, 0, 2, 0, ACPI_OPREGION_GPA,
+				ACPI_OPREGION_SIZE, ALIGN_DOWN(opregion_hpa, 4096));
+		opregion_mapped = false;
 	}
 
 	pciaccess_cleanup();
@@ -1251,6 +1272,10 @@ passthru_cfgread(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
 	if ((PCI_BDF(dev->bus, dev->slot, dev->func) == PCI_BDF_GPU)
 		&& (coff == PCIR_GMCH_CTL)) {
 		*rv &= ~PCIM_GMCH_CTL_GMS;
+	}
+
+	if (ptdev->phys_bdf == PCI_BDF_GPU && coff == PCIR_ASLS_CTL && opregion_mapped) {
+		*rv = ACPI_OPREGION_GPA | (opregion_hpa & ~PAGE_MASK);
 	}
 
 	return 0;
