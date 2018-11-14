@@ -60,6 +60,7 @@ int acrn_parse_ramdisk(char *arg);
 int acrn_parse_bootargs(char *arg);
 int acrn_parse_gvtargs(char *arg);
 int acrn_parse_vsbl(char *arg);
+int acrn_parse_ovmf(char *arg);
 int acrn_parse_elf(char *arg);
 int acrn_parse_guest_part_info(char *arg);
 char *get_bootargs(void);
@@ -73,6 +74,7 @@ int add_e820_entry(struct e820_entry *e820, int len, uint64_t start,
 int acrn_sw_load_bzimage(struct vmctx *ctx);
 int acrn_sw_load_elf(struct vmctx *ctx);
 int acrn_sw_load_vsbl(struct vmctx *ctx);
+int acrn_sw_load_ovmf(struct vmctx *ctx);
 int acrn_sw_load(struct vmctx *ctx);
 #endif
 

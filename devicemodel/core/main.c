@@ -79,6 +79,7 @@ char *vmname;
 int guest_ncpus;
 char *guest_uuid_str;
 char *vsbl_file_name;
+char *ovmf_file_name;
 char *kernel_file_name;
 char *elf_file_name;
 uint8_t trusty_enabled;
@@ -697,6 +698,7 @@ sig_handler_term(int signo)
 
 enum {
 	CMD_OPT_VSBL = 1000,
+	CMD_OPT_OVMF,
 	CMD_OPT_PART_INFO,
 	CMD_OPT_TRUSTY_ENABLE,
 	CMD_OPT_PTDEV_NO_RESET,
@@ -731,6 +733,7 @@ static struct option long_options[] = {
 	{"dump",		required_argument,	0, CMD_OPT_DUMP},
 #endif
 	{"vsbl",		required_argument,	0, CMD_OPT_VSBL},
+	{"ovmf",		required_argument,	0, CMD_OPT_OVMF},
 	{"part_info",		required_argument,	0, CMD_OPT_PART_INFO},
 	{"enable_trusty",	no_argument,		0,
 					CMD_OPT_TRUSTY_ENABLE},
@@ -841,8 +844,14 @@ dm_run(int argc, char *argv[])
 			print_version();
 			break;
 		case CMD_OPT_VSBL:
-			if (acrn_parse_vsbl(optarg) != 0) {
+			if (!ovmf_file_name && acrn_parse_vsbl(optarg) != 0) {
 				errx(EX_USAGE, "invalid vsbl param %s", optarg);
+				exit(1);
+			}
+			break;
+		case CMD_OPT_OVMF:
+			if (!vsbl_file_name && acrn_parse_ovmf(optarg) != 0) {
+				errx(EX_USAGE, "invalid ovmf param %s", optarg);
 				exit(1);
 			}
 			break;

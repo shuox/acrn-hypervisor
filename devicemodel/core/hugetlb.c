@@ -36,8 +36,10 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "vmmapi.h"
+#include "dm.h"
 
 #define HUGETLB_LV1		0
 #define HUGETLB_LV2		1
@@ -204,6 +206,10 @@ static bool should_enable_hugetlb_level(int level)
 		return false;
 	}
 
+	/* for OVMF, there is always a 2MB page for high bios */
+	if (ovmf_file_name && hugetlb_priv[level].pg_size == 2 * MB)
+		return true;
+
 	return (hugetlb_priv[level].lowmem > 0 ||
 		hugetlb_priv[level].highmem > 0);
 }
@@ -259,6 +265,7 @@ static int mmap_hugetlbfs_lowmem(struct vmctx *ctx)
 		while (len > 0) {
 			ret = mmap_hugetlbfs(ctx, level, len, offset, skip);
 			if (ret < 0 && level > HUGETLB_LV1) {
+				assert(len >= pg_size);
 				len -= pg_size;
 				hugetlb_priv[level].lowmem = len;
 				hugetlb_priv[level-1].lowmem += pg_size;
@@ -287,6 +294,7 @@ static int mmap_hugetlbfs_highmem(struct vmctx *ctx)
 		while (len > 0) {
 			ret = mmap_hugetlbfs(ctx, level, len, offset, skip);
 			if (ret < 0 && level > HUGETLB_LV1) {
+				assert(len >= pg_size);
 				len -= pg_size;
 				hugetlb_priv[level].highmem = len;
 				hugetlb_priv[level-1].highmem += pg_size;
@@ -300,6 +308,31 @@ static int mmap_hugetlbfs_highmem(struct vmctx *ctx)
 	}
 
 	return 0;
+}
+
+static int mmap_hugetlbfs_high_bios(struct vmctx *ctx)
+{
+	size_t len, offset, skip;
+	int level, ret = 0, pg_size;
+
+	offset = 4 * GB - 2 * MB;
+	for (level = hugetlb_lv_max - 1; level >= HUGETLB_LV1; level--) {
+		pg_size = hugetlb_priv[level].pg_size;
+
+		if (pg_size > 2 * MB)
+			continue;
+
+		skip = hugetlb_priv[level].lowmem + hugetlb_priv[level].highmem;
+		len = 2 * MB;
+
+		ret = mmap_hugetlbfs(ctx, level, len, offset, skip);
+		if (ret < 0)
+			return ret;
+		else
+			break;
+	}
+
+	return (level >= HUGETLB_LV1) ? 0 : -ENOMEM;
 }
 
 static int create_hugetlb_dirs(int level)
@@ -413,6 +446,9 @@ static bool hugetlb_check_memgap(void)
 		need_pages = (hugetlb_priv[lvl].lowmem +
 			hugetlb_priv[lvl].highmem) / hugetlb_priv[lvl].pg_size;
 
+		if (ovmf_file_name && hugetlb_priv[lvl].pg_size == 2 * MB)
+			need_pages += 1; /* high bios region for OVMF */
+
 		hugetlb_priv[lvl].pages_delta = need_pages - free_pages;
 		/* if delta > 0, it's a gap for needed pages, to be handled */
 		if (hugetlb_priv[lvl].pages_delta > 0)
@@ -518,7 +554,7 @@ static bool hugetlb_reserve_pages(void)
 		reserve_more_pages(level);
 
 		/* check if reserved enough pages */
-		if (hugetlb_priv[level].pages_delta  == 0)
+		if (hugetlb_priv[level].pages_delta == 0)
 			continue;
 
 		/* probably system allocates fewer pages than needed
@@ -587,6 +623,11 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	size_t lowmem, highmem;
 	bool has_gap;
 
+	if (ctx->lowmem == 0) {
+		perror("vm requests 0 memory");
+		goto err;
+	}
+
 	/* for first time DM start UOS, hugetlbfs is already mounted by
 	 * check_hugetlb_support; but for reboot, here need re-mount
 	 * it as it already be umount by hugetlb_unsetup_memory
@@ -611,15 +652,14 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	ctx->highmem =
 		ALIGN_DOWN(ctx->highmem, hugetlb_priv[HUGETLB_LV1].pg_size);
 
-	if (ctx->highmem > 0)
+	/*
+	 * For OVMF, at least 4GB of memory space is needed.
+	 * High BIOS resides right below 4GB.
+	 */
+	if (ovmf_file_name || ctx->highmem > 0)
 		total_size = 4 * GB + ctx->highmem;
 	else
 		total_size = ctx->lowmem;
-
-	if (total_size == 0) {
-		perror("vm request 0 memory");
-		goto err;
-	}
 
 	/* check & set hugetlb level memory size for lowmem & highmem */
 	highmem = ctx->highmem;
@@ -687,6 +727,12 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	if (mmap_hugetlbfs_highmem(ctx) < 0)
 		goto err;
 
+	/* for OVMF, mmap high bios */
+	if (ovmf_file_name && mmap_hugetlbfs_high_bios(ctx) < 0) {
+		perror("high bios mmap fail");
+		goto err;
+	}
+
 	/* dump hugepage really setup */
 	printf("\nreally setup hugepage with:\n");
 	for (level = HUGETLB_LV1; level < hugetlb_lv_max; level++) {
@@ -696,17 +742,24 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	}
 	printf("total_size 0x%lx\n\n", total_size);
 
-	/* map ept for lowmem*/
+	/* map ept for lowmem */
 	if (vm_map_memseg_vma(ctx, ctx->lowmem, 0,
 		(uint64_t)ctx->baseaddr, PROT_ALL) < 0)
 		goto err;
 
-	/* map ept for highmem*/
+	/* map ept for highmem */
 	if (ctx->highmem > 0) {
 		if (vm_map_memseg_vma(ctx, ctx->highmem, 4 * GB,
 			(uint64_t)(ctx->baseaddr + 4 * GB), PROT_ALL) < 0)
 			goto err;
 	}
+
+	/* for OVMF, map ept for high bios */
+	if (ovmf_file_name &&
+	    vm_map_memseg_vma(ctx, 2 * MB, 4 * GB - 2 * MB,
+	                      (uint64_t)(ctx->baseaddr + 4 * GB - 2 * MB),
+	                      PROT_READ | PROT_EXEC) < 0)
+		goto err;
 
 	return 0;
 
