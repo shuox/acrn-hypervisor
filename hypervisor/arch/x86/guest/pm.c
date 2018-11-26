@@ -99,7 +99,7 @@ static inline void init_cx_port(struct acrn_vm *vm)
 	}
 }
 
-static inline void init_pmtmr_port(struct vm *vm)
+static inline void init_pmtmr_port(struct acrn_vm *vm)
 {
 	uint8_t io_len[5] = {0, 1, 2, 4, 8};
 	struct pm_s_state_data *sx_data = (struct pm_s_state_data *)&host_pm_s_state;
