@@ -36,6 +36,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <sys/errno.h>
 
 #include "types.h"
@@ -43,6 +46,7 @@
 #include "uart_core.h"
 #include "ns16550.h"
 #include "dm.h"
+#include "dm_string.h"
 
 #define	COM1_BASE	0x3F8
 #define COM1_IRQ	4
@@ -65,6 +69,10 @@
 
 #define	FIFOSZ	256
 
+static int uart_debug;
+#define DPRINTF(params) do { if (uart_debug) printf params; } while (0)
+#define WPRINTF(params) (printf params)
+
 static struct termios tio_stdio_orig;
 
 static struct {
@@ -78,6 +86,13 @@ static struct {
 
 #define	UART_NLDEVS	(ARRAY_SIZE(uart_lres))
 
+enum uart_be_type {
+	UART_BE_INVALID = 0,
+	UART_BE_STDIO,
+	UART_BE_TTY,
+	UART_BE_SOCK
+};
+
 struct fifo {
 	uint8_t	buf[FIFOSZ];
 	int	rindex;		/* index to read from */
@@ -86,11 +101,13 @@ struct fifo {
 	int	size;		/* size of the fifo */
 };
 
-struct ttyfd {
-	bool	opened;
-	int	fd_in;		/* tty device file descriptor */
-	int	fd_out;		/* stdin=0 stdout=1 should be different, when use stdio*/
-	struct termios tio_orig, tio_new;    /* I/O Terminals */
+struct uart_backend {
+	int			fd;
+	struct mevent		*evp;
+	int			fd2;
+	struct mevent		*evp2;
+	enum uart_be_type	be_type;
+	bool			opened;
 };
 
 struct uart_vdev {
@@ -108,9 +125,8 @@ struct uart_vdev {
 	uint8_t dlh;		/* Baudrate divisor latch MSB */
 
 	struct fifo rxfifo;
-	struct mevent *mev;
+	struct uart_backend be;
 
-	struct ttyfd tty;
 	bool	thre_int_pending;	/* THRE interrupt pending */
 
 	void	*arg;
@@ -119,80 +135,28 @@ struct uart_vdev {
 };
 
 static void uart_drain(int fd, enum ev_type ev, void *arg);
+static int uart_backend_read(struct uart_backend *be);
+static int uart_backend_write(struct uart_backend *be, unsigned char wb);
+static int uart_reset_backend(struct uart_backend *be);
+static int uart_enable_backend(struct uart_backend *be, bool enable);
 
 static void
-ttyclose(void)
+uart_reset_stdio(void)
 {
 	tcsetattr(STDIN_FILENO, TCSANOW, &tio_stdio_orig);
-}
-
-static void
-ttyopen(struct ttyfd *tf)
-{
-	tcgetattr(tf->fd_in, &tf->tio_orig);
-
-	tf->tio_new = tf->tio_orig;
-	cfmakeraw(&tf->tio_new);
-	tf->tio_new.c_cflag |= CLOCAL;
-	tcsetattr(tf->fd_in, TCSANOW, &tf->tio_new);
-
-	if (tf->fd_in == STDIN_FILENO) {
-		tio_stdio_orig = tf->tio_orig;
-		atexit(ttyclose);
-	}
-}
-
-static int
-ttyread(struct ttyfd *tf)
-{
-	unsigned char rb;
-
-	if (read(tf->fd_in, &rb, 1) > 0)
-		return rb;
-
-	return -1;
-}
-
-static int
-ttywrite(struct ttyfd *tf, unsigned char wb)
-{
-	if (write(tf->fd_out, &wb, 1) > 0)
-		return 1;
-
-	return -1;
+	stdio_in_use = false;
 }
 
 static void
 rxfifo_reset(struct uart_vdev *uart, int size)
 {
-	char flushbuf[32];
 	struct fifo *fifo;
-	ssize_t nread;
-	int error;
 
 	fifo = &uart->rxfifo;
 	bzero(fifo, sizeof(struct fifo));
 	fifo->size = size;
 
-	if (uart->tty.opened) {
-		/*
-		 * Flush any unread input from the tty buffer.
-		 */
-		while (1) {
-			nread = read(uart->tty.fd_in, flushbuf, sizeof(flushbuf));
-			if (nread != sizeof(flushbuf))
-				break;
-		}
-
-		/*
-		 * Enable mevent to trigger when new characters are available
-		 * on the tty fd.
-		 */
-		if (isatty(uart->tty.fd_in)) {
-			error = mevent_enable(uart->mev);
-			assert(error == 0);
-		}
-	}
+	uart_reset_backend(&uart->be);
 }
 
 static int
@@ -208,7 +172,6 @@ static int
 rxfifo_putchar(struct uart_vdev *uart, uint8_t ch)
 {
 	struct fifo *fifo;
-	int error;
 
 	fifo = &uart->rxfifo;
 
@@ -216,17 +179,8 @@ rxfifo_putchar(struct uart_vdev *uart, uint8_t ch)
 		fifo->buf[fifo->windex] = ch;
 		fifo->windex = (fifo->windex + 1) % fifo->size;
 		fifo->num++;
-		if (!rxfifo_available(uart)) {
-			if (uart->tty.opened) {
-				/*
-				 * Disable mevent callback if the FIFO is full.
-				 */
-				if (isatty(uart->tty.fd_in)) {
-					error = mevent_disable(uart->mev);
-					assert(error == 0);
-				}
-			}
-		}
+		if (!rxfifo_available(uart))
+			uart_enable_backend(&uart->be, false);
 		return 0;
 	} else
 		return -1;
@@ -236,7 +190,7 @@ static int
 rxfifo_getchar(struct uart_vdev *uart)
 {
 	struct fifo *fifo;
-	int c, error, wasfull;
+	int c, wasfull;
 
 	wasfull = 0;
 	fifo = &uart->rxfifo;
@@ -246,12 +200,8 @@ rxfifo_getchar(struct uart_vdev *uart)
 		c = fifo->buf[fifo->rindex];
 		fifo->rindex = (fifo->rindex + 1) % fifo->size;
 		fifo->num--;
-		if (wasfull) {
-			if (uart->tty.opened && isatty(uart->tty.fd_in)) {
-				error = mevent_enable(uart->mev);
-				assert(error == 0);
-			}
-		}
+		if (wasfull)
+			uart_enable_backend(&uart->be, true);
 		return c;
 	} else
 		return -1;
@@ -263,32 +213,6 @@ rxfifo_numchars(struct uart_vdev *uart)
 	struct fifo *fifo = &uart->rxfifo;
 
 	return fifo->num;
-}
-
-static void
-uart_opentty(struct uart_vdev *uart)
-{
-	ttyopen(&uart->tty);
-	if (isatty(uart->tty.fd_in)) {
-		uart->mev = mevent_add(uart->tty.fd_in, EVF_READ,
-			uart_drain, uart);
-		assert(uart->mev != NULL);
-	}
-}
-
-static void
-uart_closetty(struct uart_vdev *uart)
-{
-	if (isatty(uart->tty.fd_in)) {
-		if (uart->tty.fd_in != STDIN_FILENO)
-			mevent_delete_close(uart->mev);
-		else
-			mevent_delete(uart->mev);
-
-		uart->mev = 0;
-	}
-
-	ttyclose();
 }
 
 static uint8_t
@@ -384,8 +308,10 @@ uart_drain(int fd, enum ev_type ev, void *arg)
 
 	uart = arg;
 
-	assert(fd == uart->tty.fd_in);
 	assert(ev == EVF_READ);
+
+	//if (uart->be.be_type == UART_BE_SOCK)
+	//	DPRINTF(("uart_drain:\r\n"));
 
 	/*
 	 * This routine is called in the context of the mevent thread
@@ -395,9 +321,9 @@ uart_drain(int fd, enum ev_type ev, void *arg)
 	pthread_mutex_lock(&uart->mtx);
 
 	if ((uart->mcr & MCR_LOOPBACK) != 0) {
-		(void) ttyread(&uart->tty);
+		(void) uart_backend_read(&uart->be);
 	} else {
-		while ((ch = ttyread(&uart->tty)) != -1)
+		while ((ch = uart_backend_read(&uart->be)) != -1)
 			rxfifo_putchar(uart, ch);
 
 		uart_toggle_intr(uart);
@@ -434,8 +360,8 @@ uart_write(struct uart_vdev *uart, int offset, uint8_t value)
 		if (uart->mcr & MCR_LOOPBACK) {
 			if (rxfifo_putchar(uart, value) != 0)
 				uart->lsr |= LSR_OE;
-		} else if (uart->tty.opened) {
-			ttywrite(&uart->tty, value);
+		} else {
+			uart_backend_write(&uart->be, value);
 		} /* else drop on floor */
 		uart->thre_int_pending = true;
 		break;
@@ -652,74 +578,375 @@ uart_init(uart_intr_func_t intr_assert, uart_intr_func_t intr_deassert,
 void
 uart_deinit(struct uart_vdev *uart)
 {
-	if (uart) {
-		if (uart->tty.opened && uart->tty.fd_in == STDIN_FILENO) {
-			ttyclose();
-			stdio_in_use = false;
-		}
+	if (uart)
 		free(uart);
+}
+
+static void
+uart_sock_accept(int fd __attribute__((unused)),
+		 enum ev_type t __attribute__((unused)),
+		 void *arg)
+{
+	struct uart_vdev *uart = (struct uart_vdev *)arg;
+	int s, flags;
+
+	s = accept(uart->be.fd, NULL, NULL);
+	if (s < 0) {
+		DPRINTF(("uart: accept error %d\n", s));
+		return;
 	}
+
+	if (uart->be.opened) {
+		DPRINTF(("uart: already connected\n"));
+		close(s);
+		return;
+	}
+
+	flags = fcntl(s, F_GETFL);
+	fcntl(s, F_SETFL, flags | O_NONBLOCK);
+
+	uart->be.opened = true;
+	uart->be.fd2 = s;
+	uart->be.evp2 = mevent_add(s, EVF_READ, uart_drain, uart);
+	if (!uart->be.evp2)
+		WPRINTF(("uart: mevent_add evp2 failed\n"));
+	DPRINTF(("uart: %s\r\n", __func__));
 }
 
 static int
-uart_tty_backend(struct uart_vdev *uart, const char *opts)
+uart_backend_read(struct uart_backend *be)
 {
-	int fd;
-	int retval;
+	unsigned char rb;
+	int rc = -1;
 
-	retval = -1;
-
-	fd = open(opts, O_RDWR | O_NONBLOCK);
-	if (fd > 0 && isatty(fd)) {
-		uart->tty.fd_in = fd;
-		uart->tty.fd_out = fd;
-		uart->tty.opened = true;
-		retval = 0;
+	if (!be || !be->opened) {
+		DPRINTF(("%s not opened\n", __func__));
+		return -1;
 	}
 
-	return retval;
+	switch (be->be_type) {
+	case UART_BE_STDIO:
+	case UART_BE_TTY:
+		rc = read(be->fd, &rb, 1);
+		break;
+	case UART_BE_SOCK:
+		rc = recv(be->fd2, &rb, 1, 0);
+		if (rc <= 0 && errno != EAGAIN) {
+			if (be->evp2) {
+				mevent_delete(be->evp2);
+				be->evp2 = NULL;
+			}
+			if (be->fd2 > 0) {
+				close(be->fd2);
+				be->fd2 = -1;
+			}
+			be->opened = false;
+			DPRINTF(("%s connection closed, rc = %d, errno = %d\n",
+				__func__, rc, errno));
+		}
+		break;
+	default:
+		WPRINTF(("not supported backend %d!\n", be->be_type));
+	}
+
+	if (rc <= 0)
+		return -1;
+
+	if (be->be_type == UART_BE_SOCK)
+		DPRINTF(("%s [%c: 0x%x]\r\n", __func__, rb, rb));
+
+	return rb;
+}
+
+static int
+uart_backend_write(struct uart_backend *be, unsigned char wb)
+{
+	int rc = -1;
+
+	if (!be || !be->opened) {
+		DPRINTF(("%s not opened\n", __func__));
+		return -1;
+	}
+
+	switch (be->be_type) {
+	case UART_BE_STDIO:
+	case UART_BE_TTY:
+		rc = write(be->fd, &wb, 1);
+		break;
+	case UART_BE_SOCK:
+		rc = send(be->fd2, &wb, 1, 0);
+		break;
+	default:
+		WPRINTF(("not supported backend %d!\n", be->be_type));
+	}
+
+	if (be->be_type == UART_BE_SOCK)
+		DPRINTF(("%s [%c: 0x%x] return %d\r\n", __func__, wb, wb, rc));
+
+	return rc;
+}
+
+static int
+uart_reset_backend(struct uart_backend *be)
+{
+	char flushbuf[32];
+	ssize_t nread;
+	int error;
+	int fd;
+	struct mevent *evp;
+
+	if (!be || !be->opened)
+		return -1;
+
+	switch (be->be_type) {
+	case UART_BE_STDIO:
+	case UART_BE_TTY:
+		fd = be->fd;
+		evp = be->evp;
+		break;
+	case UART_BE_SOCK:
+		fd = be->fd2;
+		evp = be->evp2;
+		break;
+	default:
+		WPRINTF(("not supported backend %d!\n", be->be_type));
+		return -1;
+	}
+
+	/* Flush any unread input from the backend device. */
+	while (1) {
+		nread = read(fd, flushbuf, sizeof(flushbuf));
+		if (nread != sizeof(flushbuf))
+			break;
+	}
+
+	error = mevent_enable(evp);
+	if (error) {
+		WPRINTF(("mevent_enable error\n"));
+		return -1;
+	}
+
+	if (be->be_type == UART_BE_SOCK)
+		DPRINTF(("%s\r\n", __func__));
+
+	return 0;
+}
+
+static int
+uart_enable_backend(struct uart_backend *be, bool enable)
+{
+	int error;
+	struct mevent *evp;
+
+	if (!be || !be->opened)
+		return -1;
+
+	switch (be->be_type) {
+	case UART_BE_STDIO:
+	case UART_BE_TTY:
+		evp = be->evp;
+		break;
+	case UART_BE_SOCK:
+		evp = be->evp2;
+		break;
+	default:
+		WPRINTF(("not supported backend %d!\n", be->be_type));
+		return -1;
+	}
+
+	if (enable)
+		error = mevent_enable(evp);
+	else
+		error = mevent_disable(evp);
+	if (error) {
+		WPRINTF(("mevent %s error\n", enable ? "enable" : "disable"));
+		return -1;
+	}
+
+	if (be->be_type == UART_BE_SOCK)
+		DPRINTF(("%s: %s\n", __func__, enable ? "enable" : "disable"));
+
+	return 0;
+}
+
+static int
+uart_open_backend(const char *path, enum uart_be_type be_type)
+{
+	int fd = -1;
+
+	switch (be_type) {
+	case UART_BE_STDIO:
+		if (stdio_in_use) {
+			WPRINTF(("uart: stdio is used by other device\n"));
+			break;
+		}
+		fd = STDIN_FILENO;
+		stdio_in_use = true;
+		break;
+	case UART_BE_TTY:
+		fd = open(path, O_RDWR | O_NONBLOCK);
+		if (fd < 0)
+			WPRINTF(("uart: open failed: %s\n", path));
+		else if (!isatty(fd)) {
+			WPRINTF(("uart: not a tty: %s\n", path));
+			close(fd);
+			fd = -1;
+		}
+		break;
+	case UART_BE_SOCK:
+		fd = socket(AF_INET, SOCK_STREAM | O_NONBLOCK, 0);
+		if (fd < 0)
+			WPRINTF(("uart: open socket failed\n"));
+		break;
+	default:
+		WPRINTF(("not supported backend %d!\n", be_type));
+	}
+
+	return fd;
+}
+
+static int
+uart_config_backend(struct uart_vdev *uart, struct uart_backend *be, long port)
+{
+	int fd, flags;
+	struct termios tio, saved_tio;
+	int opt = true;
+	struct sockaddr_in addr;
+
+	if (!be || be->fd == -1)
+		return -1;
+
+	fd = be->fd;
+	switch (be->be_type) {
+	case UART_BE_TTY:
+	case UART_BE_STDIO:
+		tcgetattr(fd, &tio);
+		saved_tio = tio;
+		cfmakeraw(&tio);
+		tio.c_cflag |= CLOCAL;
+		tcsetattr(fd, TCSANOW, &tio);
+
+		if (be->be_type == UART_BE_STDIO) {
+			flags = fcntl(fd, F_GETFL);
+			fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+			tio_stdio_orig = saved_tio;
+			atexit(uart_reset_stdio);
+		}
+		be->opened = true;
+		be->evp = mevent_add(fd, EVF_READ, uart_drain, uart);
+		if (!be->evp) {
+			WPRINTF(("uart: mevent_add failed\n"));
+			return -1;
+		}
+		break;
+	case UART_BE_SOCK:
+		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt,
+			sizeof(opt)) < 0) {
+			WPRINTF(("uart: setsockopt failed, errno = %d\n",
+				errno));
+			return -1;
+		}
+		addr.sin_family = AF_INET;
+		addr.sin_addr.s_addr = INADDR_ANY;
+		addr.sin_port = htons(port);
+		if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+			WPRINTF(("uart: bind failed, errno = %d\n",
+				errno));
+			return -1;
+		}
+		if (listen(fd, 1) < 0) {
+			WPRINTF(("uart: listen failed, errno = %d\n",
+				errno));
+			return -1;
+		}
+		be->opened = false;
+		be->evp = mevent_add(fd, EVF_READ, uart_sock_accept, uart);
+		if (!be->evp) {
+			WPRINTF(("uart: mevent_add failed\n"));
+			return -1;
+		}
+		break;
+	default:
+		break; /* nothing to do */
+	}
+
+	return 0;
 }
 
 int
 uart_set_backend(struct uart_vdev *uart, const char *opts)
 {
-	int retval;
-
-	retval = -1;
+	struct uart_backend *be = &uart->be;
+	const char *path = NULL;
+	enum uart_be_type be_type = UART_BE_INVALID;
+	char *vopts, *p;
+	long port = 0;
+	int rc = -1;
 
 	if (opts == NULL)
 		return -EINVAL;
 
-	if (strcmp("stdio", opts) == 0) {
-		if (!stdio_in_use) {
-			uart->tty.fd_in = STDIN_FILENO;
-			uart->tty.fd_out = STDOUT_FILENO;
-			uart->tty.opened = true;
-			stdio_in_use = true;
-			retval = 0;
+	if (strncmp(opts, "tcp", 3) == 0) {
+		be_type = UART_BE_SOCK;
+		vopts = strdup(opts);
+		if (!vopts)
+			return -1;
+
+		p = vopts;
+		if (!strsep(&p, ":") || dm_strtol(p, &p, 10, &port)) {
+			free(vopts);
+			return -1;
 		}
-	} else if (uart_tty_backend(uart, opts) == 0) {
-		retval = 0;
+
+		free(vopts);
+		vopts = NULL;
+	} else if (strcmp("stdio", opts) == 0) {
+		be_type = UART_BE_STDIO;
+	} else {
+		be_type = UART_BE_TTY;
+		path = opts;
 	}
 
-	if (retval)
-		return -EINVAL;
+	rc = uart_open_backend(path, be_type);
+	if (rc < 0) {
+		WPRINTF(("uart: open_backend failed\n"));
+		return -1;
+	}
 
-	/* Make the backend file descriptor non-blocking */
-	if (retval == 0)
-		retval = fcntl(uart->tty.fd_in, F_SETFL, O_NONBLOCK);
+	be->fd = rc;
+	be->be_type = be_type;
 
-	if (retval == 0)
-		uart_opentty(uart);
+	if (uart_config_backend(uart, be, port) < 0) {
+		WPRINTF(("uart: config_backend failed\n"));
+		goto fail;
+	}
 
-	return retval;
+	return 0;
+fail:
+	if (be->evp) {
+		mevent_delete(be->evp);
+		be->evp = NULL;
+	}
+	if (be->be_type == UART_BE_STDIO)
+		uart_reset_stdio();
+	else
+		close(be->fd);
+	be->fd = -1;
+	be->be_type = UART_BE_INVALID;
+	be->opened = false;
+
+	return -1;
 }
 
 void
 uart_release_backend(struct uart_vdev *uart, const char *opts)
 {
-	if (opts == NULL)
+	struct uart_backend *be;
+
+	if (!uart || !opts)
 		return;
+
+	be = &uart->be;
 
 	/*
 	 * By current design, for the invalid PTY parameters, the virtual uarts
@@ -728,16 +955,43 @@ uart_release_backend(struct uart_vdev *uart, const char *opts)
 	 * the uart backend in here.
 	 * TODO: need re-visit the whole policy for such scenario in future.
 	 */
-	if (!uart->tty.opened)
+	if (be->be_type == UART_BE_INVALID)
 		return;
 
-	uart_closetty(uart);
-	if (strcmp("stdio", opts) == 0) {
-		stdio_in_use = false;
-	} else
-		close(uart->tty.fd_in);
+	switch (be->be_type) {
+	case UART_BE_STDIO:
+		uart_reset_stdio();
+		if (be->evp) {
+			mevent_delete(be->evp);
+			be->evp = NULL;
+		}
+		be->fd = -1;
+		be->opened = false;
+		break;
+	case UART_BE_TTY:
+		if (be->evp) {
+			mevent_delete_close(be->evp);
+			be->evp = NULL;
+		}
+		be->fd = -1;
+		be->opened = false;
+		break;
+	case UART_BE_SOCK:
+		if (be->evp2) {
+			mevent_delete_close(be->evp2);
+			be->evp2 = NULL;
+		}
+		if (be->evp) {
+			mevent_delete_close(be->evp);
+			be->evp = NULL;
+		}
+		be->fd2 = -1;
+		be->fd = -1;
+		be->opened = false;
+		break;
+	default:
+		break; /* nothing to do */
+	}
 
-	uart->tty.fd_in = -1;
-	uart->tty.fd_out = -1;
-	uart->tty.opened = false;
+	be->be_type = UART_BE_INVALID;
 }
