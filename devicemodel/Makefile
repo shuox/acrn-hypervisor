@@ -133,6 +133,12 @@ SRCS += core/timer.c
 # arch
 SRCS += arch/x86/pm.c
 
+# WaaG
+SRCS += hw/vga.c
+SRCS += hw/rfb.c
+SRCS += hw/sockstream.c
+SRCS += hw/pci/pci_fbuf.c
+
 # vmcfg
 SRCS += vmcfg/vmcfg.c
 SRCS += vmcfg/apl-mrb/vm1/vm1.c
