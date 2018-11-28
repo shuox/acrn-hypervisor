@@ -148,7 +148,7 @@ static int open_hugetlbfs(struct vmctx *ctx, int level)
 
 	uuid_copy(UUID, ctx->vm_uuid);
 	sprintf(uuid_str, "%02X%02X%02X%02X%02X%02X%02X%02X"
-		"%02X%02X%02X%02X%02X%02X%02X%02X\n",
+		"%02X%02X%02X%02X%02X%02X%02X%02X",
 		UUID[0], UUID[1], UUID[2], UUID[3],
 		UUID[4], UUID[5], UUID[6], UUID[7],
 		UUID[8], UUID[9], UUID[10], UUID[11],
@@ -192,6 +192,8 @@ static void close_hugetlbfs(int level)
 	}
 
 	if (hugetlb_priv[level].fd >= 0) {
+		printf("close hugetlbfs level[%d] file[%s]\n",
+				level, hugetlb_priv[level].node_path);
 		close(hugetlb_priv[level].fd);
 		hugetlb_priv[level].fd = -1;
 		unlink(hugetlb_priv[level].node_path);
@@ -221,7 +223,7 @@ static bool should_enable_hugetlb_level(int level)
  * skip   : skip offset in different level hugetlbfs fd
  */
 static int mmap_hugetlbfs(struct vmctx *ctx, int level, size_t len,
-		size_t offset, size_t skip)
+		size_t offset, size_t skip, char **addr_out)
 {
 	char *addr;
 	size_t pagesz = 0;
@@ -232,12 +234,18 @@ static int mmap_hugetlbfs(struct vmctx *ctx, int level, size_t len,
 		return -EINVAL;
 	}
 
+	printf("mmap_hugetlbfs, level %d, base[0x%p] len[0x%lx]\n",
+			level, ctx->baseaddr + offset, len);
 	fd = hugetlb_priv[level].fd;
 	addr = mmap(ctx->baseaddr + offset, len, PROT_READ | PROT_WRITE,
 			MAP_SHARED | MAP_FIXED, fd, skip);
-	if (addr == MAP_FAILED)
+	if (addr == MAP_FAILED) {
+		printf("no mem\n");
 		return -ENOMEM;
+	}
 
+	if (addr_out)
+		*addr_out = addr;
 	printf("mmap 0x%lx@%p\n", len, addr);
 
 	/* pre-allocate hugepages by touch them */
@@ -263,7 +271,7 @@ static int mmap_hugetlbfs_lowmem(struct vmctx *ctx)
 		len = hugetlb_priv[level].lowmem;
 		pg_size = hugetlb_priv[level].pg_size;
 		while (len > 0) {
-			ret = mmap_hugetlbfs(ctx, level, len, offset, skip);
+			ret = mmap_hugetlbfs(ctx, level, len, offset, skip, NULL);
 			if (ret < 0 && level > HUGETLB_LV1) {
 				assert(len >= pg_size);
 				len -= pg_size;
@@ -292,7 +300,7 @@ static int mmap_hugetlbfs_highmem(struct vmctx *ctx)
 		len = hugetlb_priv[level].highmem;
 		pg_size = hugetlb_priv[level].pg_size;
 		while (len > 0) {
-			ret = mmap_hugetlbfs(ctx, level, len, offset, skip);
+			ret = mmap_hugetlbfs(ctx, level, len, offset, skip, NULL);
 			if (ret < 0 && level > HUGETLB_LV1) {
 				assert(len >= pg_size);
 				len -= pg_size;
@@ -325,7 +333,34 @@ static int mmap_hugetlbfs_high_bios(struct vmctx *ctx)
 		skip = hugetlb_priv[level].lowmem + hugetlb_priv[level].highmem;
 		len = 2 * MB;
 
-		ret = mmap_hugetlbfs(ctx, level, len, offset, skip);
+		ret = mmap_hugetlbfs(ctx, level, len, offset, skip, NULL);
+		if (ret < 0)
+			return ret;
+		else
+			break;
+	}
+
+	return (level >= HUGETLB_LV1) ? 0 : -ENOMEM;
+}
+
+static int mmap_hugetlbfs_framebuffer(struct vmctx *ctx, char **addr)
+{
+/* FB size is 16MB */
+#define FB_SIZE (16 * MB)
+	size_t len, offset, skip;
+	int level, ret = 0, pg_size;
+
+	offset = 4 * GB - 2 * MB - FB_SIZE; 
+	for (level = hugetlb_lv_max - 1; level >= HUGETLB_LV1; level--) {
+		pg_size = hugetlb_priv[level].pg_size;
+
+		if (pg_size > 2 * MB)
+			continue;
+
+		skip = hugetlb_priv[level].lowmem + hugetlb_priv[level].highmem;
+		len = FB_SIZE;
+
+		ret = mmap_hugetlbfs(ctx, level, len, offset, skip, addr);
 		if (ret < 0)
 			return ret;
 		else
@@ -405,6 +440,8 @@ static void umount_hugetlbfs(int level)
 	}
 
 	if (hugetlb_priv[level].mounted) {
+		printf("umount level[%d] path[%s]\n",
+				level, hugetlb_priv[level].mount_path);
 		umount(hugetlb_priv[level].mount_path);
 		hugetlb_priv[level].mounted = false;
 	}
@@ -448,6 +485,8 @@ static bool hugetlb_check_memgap(void)
 
 		if (ovmf_file_name && hugetlb_priv[lvl].pg_size == 2 * MB)
 			need_pages += 1; /* high bios region for OVMF */
+		if (hugetlb_priv[lvl].pg_size == 2 * MB)
+			need_pages += 8; /* framebuffer need 16MB */
 
 		hugetlb_priv[lvl].pages_delta = need_pages - free_pages;
 		/* if delta > 0, it's a gap for needed pages, to be handled */
@@ -723,6 +762,8 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	if (mmap_hugetlbfs_lowmem(ctx) < 0)
 		goto err;
 
+	printf("after lowmem map\n");
+
 	/* mmap highmem */
 	if (mmap_hugetlbfs_highmem(ctx) < 0)
 		goto err;
@@ -730,6 +771,12 @@ int hugetlb_setup_memory(struct vmctx *ctx)
 	/* for OVMF, mmap high bios */
 	if (ovmf_file_name && mmap_hugetlbfs_high_bios(ctx) < 0) {
 		perror("high bios mmap fail");
+		goto err;
+	}
+
+	/* for VGA, mmap below high bios */
+	if (mmap_hugetlbfs_framebuffer(ctx, (char **)&ctx->fb_base) < 0) {
+		perror("framebuffer mmap fail");
 		goto err;
 	}
 
