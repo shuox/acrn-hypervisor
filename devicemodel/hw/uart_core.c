@@ -67,7 +67,7 @@
 #define REG_SCR		com_scr
 #endif
 
-#define	FIFOSZ	256
+#define	FIFOSZ	10240
 
 static int uart_debug;
 #define DPRINTF(params) do { if (uart_debug) printf params; } while (0)
