@@ -462,6 +462,8 @@ vm_map_ptdev_mmio(struct vmctx *ctx, int bus, int slot, int func,
 	memmap.hpa = hpa;
 	memmap.prot = PROT_ALL;
 
+	printf("lskakaxi, map_ptdev, gpa[%lx] size[%lx] hpa[%lx]\n\r",
+			gpa, len, hpa);
 	return ioctl(ctx->fd, IC_SET_MEMSEG, &memmap);
 }
 
@@ -478,6 +480,8 @@ vm_unmap_ptdev_mmio(struct vmctx *ctx, int bus, int slot, int func,
 	memmap.hpa = hpa;
 	memmap.prot = PROT_ALL;
 
+	printf("lskakaxi, unmap_ptdev, gpa[%lx] size[%lx] hpa[%lx]\n\r",
+			gpa, len, hpa);
 	return ioctl(ctx->fd, IC_UNSET_MEMSEG, &memmap);
 }
 
