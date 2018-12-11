@@ -1094,6 +1094,7 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		opregion_hpa = read_config(ptdev->phys_dev, PCIR_ASLS_CTL, 4);
 		vm_map_ptdev_mmio(ctx, 0, 2, 0, ACPI_OPREGION_GPA,
 				ACPI_OPREGION_SIZE, ALIGN_DOWN(opregion_hpa, 4096));
+		vm_map_ptdev_mmio(ctx, 0, 2, 0, 0xA0000, 0x20000, 0xA0000);
 		opregion_mapped = true;
 	}
 
@@ -1228,6 +1229,7 @@ passthru_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (ptdev->phys_bdf == PCI_BDF_GPU && opregion_mapped) {
 		vm_unmap_ptdev_mmio(ctx, 0, 2, 0, ACPI_OPREGION_GPA,
 				ACPI_OPREGION_SIZE, ALIGN_DOWN(opregion_hpa, 4096));
+		vm_unmap_ptdev_mmio(ctx, 0, 2, 0, 0xA0000, 0x20000, 0xA0000);
 		opregion_mapped = false;
 	}
 
