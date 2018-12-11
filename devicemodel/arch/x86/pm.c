@@ -58,6 +58,8 @@ reset_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 {
 	int error;
 	static uint8_t reset_control;
+	fprintf(stderr, "%s:%d dir=%s eax=0x0%x bytes=%d\n", __func__, __LINE__,
+			in ? "in":"out", in ? reset_control:*eax, bytes);
 
 	if (bytes != 1)
 		return -1;
@@ -158,6 +160,9 @@ pm1_status_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 	if (bytes != 2)
 		return -1;
 
+	fprintf(stderr, "%s:%d dir=%s eax=0x0%x bytes=%d\n", __func__, __LINE__,
+			in ? "in":"out", in ? pm1_status : *eax, bytes);
+
 	pthread_mutex_lock(&pm_lock);
 	if (in)
 		*eax = pm1_status;
@@ -188,6 +193,9 @@ static int
 pm1_enable_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 		   uint32_t *eax, void *arg)
 {
+	fprintf(stderr, "%s:%d dir=%s eax=0x0%x bytes=%d\n", __func__, __LINE__,
+			in ? "in":"out", in ? pm1_enable:*eax, bytes);
+
 	if (bytes != 2)
 		return -1;
 
@@ -242,6 +250,8 @@ pm1_control_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 		    uint32_t *eax, void *arg)
 {
 	int error;
+	fprintf(stderr, "%s:%d dir=%s eax=0x0%x bytes=%d\n", __func__, __LINE__,
+			in ? "in":"out", in ? pm1_control:*eax, bytes);
 
 	if (bytes != 2)
 		return -1;
@@ -287,6 +297,9 @@ smi_cmd_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 		uint32_t *eax, void *arg)
 {
 	assert(!in);
+	fprintf(stderr, "%s:%d dir=%s eax=0x0%x bytes=%d\n", __func__, __LINE__,
+			in ? "in":"out", in ? 0x0:*eax, bytes);
+
 	if (bytes != 1)
 		return -1;
 
