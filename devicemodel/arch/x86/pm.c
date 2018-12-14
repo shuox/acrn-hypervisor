@@ -95,7 +95,7 @@ sci_assert(struct vmctx *ctx)
 {
 	if (sci_active)
 		return;
-	vm_set_gsi_irq(ctx, SCI_INT, GSI_SET_HIGH);
+	vm_set_gsi_irq(ctx, SCI_INT, GSI_SET_LOW);
 	sci_active = 1;
 }
 
@@ -104,7 +104,7 @@ sci_deassert(struct vmctx *ctx)
 {
 	if (!sci_active)
 		return;
-	vm_set_gsi_irq(ctx, SCI_INT, GSI_SET_LOW);
+	vm_set_gsi_irq(ctx, SCI_INT, GSI_SET_HIGH);
 	sci_active = 0;
 }
 
@@ -336,4 +336,5 @@ sci_init(struct vmctx *ctx)
 	 * in the PIRQ router.
 	 */
 	pci_irq_use(SCI_INT);
+	vm_set_gsi_irq(ctx, SCI_INT, GSI_SET_HIGH);
 }
