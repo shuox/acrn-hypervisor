@@ -137,6 +137,8 @@ struct context_table {
 	struct page buses[CONFIG_IOMMU_BUS_NUM];
 };
 
+bool iommu_snoop = true; /* enable iommu snoop control */
+
 static struct page root_tables[CONFIG_MAX_IOMMU_NUM] __aligned(CPU_PAGE_SIZE);
 static struct context_table ctx_tables[CONFIG_MAX_IOMMU_NUM] __aligned(CPU_PAGE_SIZE);
 
@@ -473,7 +475,8 @@ static int dmar_register_hrhd(struct dmar_drhd_rt *dmar_uint)
 	 * How to guarantee it when EPT is used as second-level
 	 * translation paging structures?
 	 */
-	if (iommu_ecap_sc(dmar_uint->ecap) == 0U) {
+	if (iommu_ecap_sc(dmar_uint->ecap) == 0U && !dmar_uint->drhd->ignore) {
+		iommu_snoop = false;
 		dev_dbg(ACRN_DBG_IOMMU,
 			"dmar uint doesn't support snoop control!");
 	}

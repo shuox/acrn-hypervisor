@@ -29,6 +29,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/user.h>
+#include <sys/io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -71,9 +72,6 @@
 
 extern uint64_t audio_nhlt_len;
 
-/* TODO: Add support for IO BAR of PTDev */
-static int iofd = -1;
-
 /* reference count for libpciaccess init/deinit */
 static int pciaccess_ref_cnt;
 static pthread_mutex_t ref_cnt_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -88,6 +86,13 @@ struct mmio_map {
 	uint64_t hpa;
 	size_t size;
 };
+
+/* ACPI OpRegion for GPU passthrough */
+#define PCIR_ASLS_CTL			0xFC
+
+static bool opregion_mapped = false;
+static uint32_t opregion_hpa = 0;
+
 
 struct passthru_dev {
 	struct pci_vdev *dev;
@@ -822,6 +827,8 @@ cfginitbar(struct vmctx *ctx, struct passthru_dev *ptdev)
 		ptdev->bar[i].type = bartype;
 		ptdev->bar[i].size = size;
 		ptdev->bar[i].addr = base;
+		printf("host ptdev bar[%d], addr[%lx] size[%lx] type[%x]\n\r",
+				i, base, size, bartype);
 
 		if (size == 0)
 			continue;
@@ -830,6 +837,9 @@ cfginitbar(struct vmctx *ctx, struct passthru_dev *ptdev)
 		error = pci_emul_alloc_pbar(dev, i, base, bartype, size);
 		if (error)
 			return -1;
+
+		printf("guest ptdev bar[%d], addr[%lx] size[%lx] type[%x]\n\r",
+				i, dev->bar[i].addr, dev->bar[i].size, dev->bar[i].type);
 
 		/* The MSI-X table needs special handling */
 		if (i == pci_msix_table_bar(dev)) {
@@ -1079,6 +1089,15 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	if (error < 0)
 		goto done;
 
+	/* read opregion start address when GPU passthrough is enabled */
+	if (ptdev->phys_bdf == PCI_BDF_GPU) {
+		opregion_hpa = read_config(ptdev->phys_dev, PCIR_ASLS_CTL, 4);
+		vm_map_ptdev_mmio(ctx, 0, 2, 0, ACPI_OPREGION_GPA,
+				ACPI_OPREGION_SIZE, ALIGN_DOWN(opregion_hpa, 4096));
+		vm_map_ptdev_mmio(ctx, 0, 2, 0, 0xA0000, 0x20000, 0xA0000);
+		opregion_mapped = true;
+	}
+
 	/* If ptdev support MSI/MSIX, stop here to skip virtual INTx setup.
 	 * Forge Guest to use MSI/MSIX in this case to mitigate IRQ sharing
 	 * issue
@@ -1114,6 +1133,53 @@ pciaccess_cleanup(void)
 	if (!pciaccess_ref_cnt)
 		pci_system_cleanup();
 	pthread_mutex_unlock(&ref_cnt_mtx);
+}
+
+#define	PCI_EMUL_MEMBASE64	0x200000000UL
+#define	PCI_EMUL_MEMLIMIT64	0x300000000UL
+void passthru_update_bar_addr(struct vmctx *ctx, struct pci_vdev *dev,
+		int idx, uint64_t addr)
+{
+	struct passthru_dev *ptdev;
+	int bar;
+
+	if (!dev->arg) {
+		warnx("%s: passthru_dev is NULL", __func__);
+		return;
+	}
+	ptdev = (struct passthru_dev *) dev->arg;
+
+	bar = idx;
+	if (ptdev->bar[idx].type == PCIBAR_MEMHI64)
+		bar = idx - 1;
+
+	if (ptdev->bar[bar].size == 0 || idx == pci_msix_table_bar(dev) ||
+			ptdev->bar[idx].type == PCIBAR_IO)
+			return;
+
+	if (dev->bar[bar].addr + ptdev->bar[bar].size > PCI_EMUL_MEMLIMIT64 ||
+			addr + ptdev->bar[bar].size > PCI_EMUL_MEMLIMIT64)
+		return;
+
+#if 0
+	printf("lskakaxi, unmap_ptdev, gpa[%lx] size[%lx] hpa[%lx]\n\r",
+			dev->bar[bar].addr, ptdev->bar[bar].size,
+			ptdev->bar[bar].addr);
+
+	printf("lskakaxi, map_ptdev, gpa[%lx] size[%lx] hpa[%lx]\n\r",
+			addr, ptdev->bar[bar].size,
+			ptdev->bar[bar].addr);
+#else
+	vm_unmap_ptdev_mmio(ctx, ptdev->sel.bus,
+			ptdev->sel.dev, ptdev->sel.func,
+			dev->bar[bar].addr, ptdev->bar[bar].size,
+			ptdev->bar[bar].addr);
+
+	vm_map_ptdev_mmio(ctx, ptdev->sel.bus,
+			ptdev->sel.dev, ptdev->sel.func,
+			addr, ptdev->bar[bar].size,
+			ptdev->bar[bar].addr);
+#endif
 }
 
 static void
@@ -1158,6 +1224,13 @@ passthru_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 				ptdev->sel.dev, ptdev->sel.func,
 				dev->bar[i].addr, ptdev->bar[i].size,
 				ptdev->bar[i].addr);
+	}
+
+	if (ptdev->phys_bdf == PCI_BDF_GPU && opregion_mapped) {
+		vm_unmap_ptdev_mmio(ctx, 0, 2, 0, ACPI_OPREGION_GPA,
+				ACPI_OPREGION_SIZE, ALIGN_DOWN(opregion_hpa, 4096));
+		vm_unmap_ptdev_mmio(ctx, 0, 2, 0, 0xA0000, 0x20000, 0xA0000);
+		opregion_mapped = false;
 	}
 
 	pciaccess_cleanup();
@@ -1253,6 +1326,10 @@ passthru_cfgread(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
 		*rv &= ~PCIM_GMCH_CTL_GMS;
 	}
 
+	if (ptdev->phys_bdf == PCI_BDF_GPU && coff == PCIR_ASLS_CTL && opregion_mapped) {
+		*rv = ACPI_OPREGION_GPA | (opregion_hpa & ~PAGE_MASK);
+	}
+
 	return 0;
 }
 
@@ -1331,21 +1408,30 @@ passthru_write(struct vmctx *ctx, int vcpu, struct pci_vdev *dev, int baridx,
 	       uint64_t offset, int size, uint64_t value)
 {
 	struct passthru_dev *ptdev;
-	struct iodev_pio_req pio;
 
 	ptdev = dev->arg;
 
 	if (baridx == pci_msix_table_bar(dev)) {
 		msix_table_write(ctx, vcpu, ptdev, offset, size, value);
 	} else {
-		assert(dev->bar[baridx].type == PCIBAR_IO);
-		bzero(&pio, sizeof(struct iodev_pio_req));
-		pio.access = IODEV_PIO_WRITE;
-		pio.port = ptdev->bar[baridx].addr + offset;
-		pio.width = size;
-		pio.val = value;
-
-		(void)ioctl(iofd, IODEV_PIO, &pio);
+//		assert(dev->bar[baridx].type == PCIBAR_IO);
+		if (dev->bar[baridx].type == PCIBAR_IO) {
+			fprintf(stderr, "passthru PIO bar write: vcpu[%d] port[%lx] size[%x] val[%lx]\r\n",
+					vcpu, ptdev->bar[baridx].addr + offset, size, value);
+		}
+		switch (size) {
+		case 1:
+			outb((uint8_t)value, ptdev->bar[baridx].addr + offset);
+			break;
+		case 2:
+			outw((uint16_t)value, ptdev->bar[baridx].addr + offset);
+			break;
+		case 4:
+			outl((uint32_t)value, ptdev->bar[baridx].addr + offset);
+			break;
+		default:
+			assert(1);
+		}
 	}
 }
 
@@ -1354,24 +1440,30 @@ passthru_read(struct vmctx *ctx, int vcpu, struct pci_vdev *dev, int baridx,
 	      uint64_t offset, int size)
 {
 	struct passthru_dev *ptdev;
-	struct iodev_pio_req pio;
-	uint64_t val;
+	uint64_t val = 0;
 
 	ptdev = dev->arg;
 
 	if (baridx == pci_msix_table_bar(dev)) {
 		val = msix_table_read(ptdev, offset, size);
 	} else {
-		assert(dev->bar[baridx].type == PCIBAR_IO);
-		bzero(&pio, sizeof(struct iodev_pio_req));
-		pio.access = IODEV_PIO_READ;
-		pio.port = ptdev->bar[baridx].addr + offset;
-		pio.width = size;
-		pio.val = 0;
-
-		(void)ioctl(iofd, IODEV_PIO, &pio);
-
-		val = pio.val;
+		if (dev->bar[baridx].type == PCIBAR_IO) {
+			fprintf(stderr, "passthru PIO bar read: vcpu[%d] port[%lx] size[%x] val[%lx]\r\n",
+					vcpu, ptdev->bar[baridx].addr + offset, size, val);
+		}
+		switch (size) {
+		case 1:
+			val = inb(ptdev->bar[baridx].addr + offset);
+			break;
+		case 2:
+			val = inw(ptdev->bar[baridx].addr + offset);
+			break;
+		case 4:
+			val = inl(ptdev->bar[baridx].addr + offset);
+			break;
+		default:
+			assert(1);
+		}
 	}
 
 	return val;

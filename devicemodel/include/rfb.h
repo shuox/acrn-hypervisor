@@ -1,5 +1,7 @@
 /*-
- * Copyright (c) 2012 NetApp, Inc.
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
+ * Copyright (c) 2015 Tycho Nightingale <tycho.nightingale@pluribusnetworks.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -11,10 +13,10 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY NETAPP, INC ``AS IS'' AND
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL NETAPP, INC OR CONTRIBUTORS BE LIABLE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
  * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
@@ -23,44 +25,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: stable/11/usr.sbin/bhyve/rfb.h 336189 2018-07-11 07:16:13Z araujo $
  */
 
-#ifndef _ACPI_H_
-#define _ACPI_H_
+#ifndef _RFB_H_
+#define	_RFB_H_
 
-#define	SCI_INT			9
+#define	RFB_PORT	5900
 
-#define	SMI_CMD			0xb2
-#define	ACPI_ENABLE		0xa0
-#define	ACPI_DISABLE		0xa1
+int	rfb_init(char *hostname, int port, int wait, char *password);
 
-#define	PM1A_EVT_ADDR		0x400
-#define	PM1A_CNT_ADDR		0x404
-
-#define	IO_PMTMR		0x408	/* 4-byte i/o port for the timer */
-
-/* All dynamic table entry no. */
-#define NHLT_ENTRY_NO		8
-
-#define ACPI_OPREGION_SIZE	0x3000
-#define ACPI_OPREGION_GPA 	(0xe0000000 - ACPI_OPREGION_SIZE)
-
-void acpi_table_enable(int num);
-uint32_t get_acpi_base(void);
-uint32_t get_acpi_table_length(void);
-
-struct vmctx;
-
-int	acpi_build(struct vmctx *ctx, int ncpu);
-void	dsdt_line(const char *fmt, ...);
-void	dsdt_fixed_ioport(uint16_t iobase, uint16_t length);
-void	dsdt_fixed_irq(uint8_t irq);
-void	dsdt_fixed_mem32(uint32_t base, uint32_t length);
-void	dsdt_indent(int levels);
-void	dsdt_unindent(int levels);
-void	sci_init(struct vmctx *ctx);
-void	pm_write_dsdt(struct vmctx *ctx, int ncpu);
-void	pm_backto_wakeup(struct vmctx *ctx);
-
-#endif /* _ACPI_H_ */
+#endif /* _RFB_H_ */

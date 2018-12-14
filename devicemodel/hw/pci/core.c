@@ -96,8 +96,8 @@ SYSRES_MEM(PCI_EMUL_ECFG_BASE, PCI_EMUL_ECFG_SIZE);
 
 #define	PCI_EMUL_MEMLIMIT32	PCI_EMUL_ECFG_BASE
 
-#define	PCI_EMUL_MEMBASE64	0x7000000000UL
-#define	PCI_EMUL_MEMLIMIT64	0x8D00000000UL
+#define	PCI_EMUL_MEMBASE64	0x200000000UL
+#define	PCI_EMUL_MEMLIMIT64	0x300000000UL
 
 static struct pci_vdev_ops *pci_emul_finddev(char *name);
 static void pci_lintr_route(struct pci_vdev *dev);
@@ -618,6 +618,8 @@ memen(struct pci_vdev *dev)
 	return (cmd & PCIM_CMD_MEMEN);
 }
 
+void passthru_update_bar_addr(struct vmctx *ctx, struct pci_vdev *dev,
+			int idx, uint64_t addr);
 /*
  * Update the MMIO or I/O address that is decoded by the BAR register.
  *
@@ -628,6 +630,7 @@ static void
 update_bar_address(struct  pci_vdev *dev, uint64_t addr, int idx, int type)
 {
 	int decode;
+	uint64_t orig_addr;
 
 	if (dev->bar[idx].type == PCIBAR_IO)
 		decode = porten(dev);
@@ -640,15 +643,24 @@ update_bar_address(struct  pci_vdev *dev, uint64_t addr, int idx, int type)
 	switch (type) {
 	case PCIBAR_IO:
 	case PCIBAR_MEM32:
+		orig_addr = dev->bar[idx].addr;
 		dev->bar[idx].addr = addr;
+		printf("lskakaxi, 32 update bar[%d] addr[%lx] to [%lx]\r\n",
+				idx, orig_addr, dev->bar[idx].addr);
 		break;
 	case PCIBAR_MEM64:
+		orig_addr = dev->bar[idx].addr;
 		dev->bar[idx].addr &= ~0xffffffffUL;
 		dev->bar[idx].addr |= addr;
+		printf("lskakaxi, 64 update bar[%d] addr[%lx] to [%lx]\r\n",
+				idx, orig_addr, dev->bar[idx].addr);
 		break;
 	case PCIBAR_MEMHI64:
+		orig_addr = dev->bar[idx].addr;
 		dev->bar[idx].addr &= 0xffffffff;
 		dev->bar[idx].addr |= addr;
+		printf("lskakaxi, 64hi update bar[%d] addr[%lx] to [%lx]\r\n",
+				idx, orig_addr, dev->bar[idx].addr);
 		break;
 	default:
 		assert(0);
@@ -692,30 +704,16 @@ pci_emul_alloc_pbar(struct pci_vdev *pdi, int idx, uint64_t hostbase,
 		break;
 	case PCIBAR_MEM64:
 		/*
-		 * XXX
-		 * Some drivers do not work well if the 64-bit BAR is allocated
-		 * above 4GB. Allow for this by allocating small requests under
-		 * 4GB unless then allocation size is larger than some arbitrary
-		 * number (32MB currently).
+		 * XXX special case for device requiring peer-peer DMA
 		 */
-		if (size > 32 * 1024 * 1024) {
-			/*
-			 * XXX special case for device requiring peer-peer DMA
-			 */
-			if (size == 0x100000000UL)
-				baseptr = &hostbase;
-			else
-				baseptr = &pci_emul_membase64;
-			limit = PCI_EMUL_MEMLIMIT64;
-			mask = PCIM_BAR_MEM_BASE;
-			lobits = PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64 |
-				 PCIM_BAR_MEM_PREFETCH;
-			break;
-		}
-		baseptr = &pci_emul_membase32;
-		limit = PCI_EMUL_MEMLIMIT32;
+		if (size == 0x100000000UL)
+			baseptr = &hostbase;
+		else
+			baseptr = &pci_emul_membase64;
+		limit = PCI_EMUL_MEMLIMIT64;
 		mask = PCIM_BAR_MEM_BASE;
-		lobits = PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64;
+		lobits = PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64 |
+			PCIM_BAR_MEM_PREFETCH;
 		break;
 	case PCIBAR_MEM32:
 		baseptr = &pci_emul_membase32;
@@ -2132,6 +2130,7 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 				addr = bar = *eax & mask;
 				bar |= PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_32;
 				if (addr != dev->bar[idx].addr) {
+					passthru_update_bar_addr(ctx, dev, idx, addr);
 					update_bar_address(dev, addr, idx,
 							   PCIBAR_MEM32);
 				}
@@ -2141,6 +2140,8 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 				bar |= PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64 |
 				       PCIM_BAR_MEM_PREFETCH;
 				if (addr != (uint32_t)dev->bar[idx].addr) {
+					passthru_update_bar_addr(ctx, dev, idx,
+						(dev->bar[idx].addr & ~0xffffffffUL) | addr);
 					update_bar_address(dev, addr, idx,
 							   PCIBAR_MEM64);
 				}
@@ -2151,6 +2152,8 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 				addr = ((uint64_t)*eax << 32) & mask;
 				bar = addr >> 32;
 				if (bar != dev->bar[idx - 1].addr >> 32) {
+					passthru_update_bar_addr(ctx, dev, idx,
+						(dev->bar[idx-1].addr & 0xffffffff) | addr);
 					update_bar_address(dev, addr, idx - 1,
 							   PCIBAR_MEMHI64);
 				}

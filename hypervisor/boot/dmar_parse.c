@@ -271,7 +271,7 @@ handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd,
 		     (dev_scope->bus << 8U) |
 		     dev_scope->devfun) == CONFIG_GPU_SBDF) {
 			ASSERT(dev_count == 1, "no dedicated iommu for gpu");
-			drhd->ignore = true;
+			drhd->ignore = false;
 		}
 
 		if (consumed <= 0)

@@ -16,7 +16,6 @@ CFLAGS += -DNO_OPENSSL
 CFLAGS += -m64
 CFLAGS += -Wall -ffunction-sections
 CFLAGS += -Werror
-CFLAGS += -O2 -D_FORTIFY_SOURCE=2
 CFLAGS += -Wformat -Wformat-security -fno-strict-aliasing
 CFLAGS += -fpie
 
@@ -132,6 +131,12 @@ SRCS += core/timer.c
 
 # arch
 SRCS += arch/x86/pm.c
+
+# WaaG
+SRCS += hw/vga.c
+SRCS += hw/rfb.c
+SRCS += hw/sockstream.c
+SRCS += hw/pci/pci_fbuf.c
 
 # vmcfg
 SRCS += vmcfg/vmcfg.c

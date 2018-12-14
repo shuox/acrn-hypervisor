@@ -465,6 +465,7 @@ struct dmar_info {
 
 extern struct dmar_info *get_dmar_info(void);
 
+extern bool iommu_snoop;
 /**
  * @file vtd.h
  *
