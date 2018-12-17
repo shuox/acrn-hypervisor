@@ -536,66 +536,6 @@ register_bar(struct pci_vdev *dev, int idx)
 	modify_bar_registration(dev, idx, 1);
 }
 
-static void
-enable_bar(struct pci_vdev *dev, int idx)
-{
-	int error = 0;
-	struct inout_port iop;
-	struct mem_range mr;
-
-	switch (dev->bar[idx].type) {
-	case PCIBAR_IO:
-		bzero(&iop, sizeof(struct inout_port));
-		iop.name = dev->name;
-		iop.port = dev->bar[idx].addr;
-		iop.size = dev->bar[idx].size;
-		error = enable_inout(&iop);
-		break;
-	case PCIBAR_MEM32:
-	case PCIBAR_MEM64:
-		bzero(&mr, sizeof(struct mem_range));
-		mr.name = dev->name;
-		mr.base = dev->bar[idx].addr;
-		mr.size = dev->bar[idx].size;
-		error = enable_mem(&mr);
-		break;
-	default:
-		error = EINVAL;
-		break;
-	}
-	assert(error == 0);
-}
-
-static void
-disable_bar(struct pci_vdev *dev, int idx)
-{
-	int error = 0;
-	struct inout_port iop;
-	struct mem_range mr;
-
-	switch (dev->bar[idx].type) {
-	case PCIBAR_IO:
-		bzero(&iop, sizeof(struct inout_port));
-		iop.name = dev->name;
-		iop.port = dev->bar[idx].addr;
-		iop.size = dev->bar[idx].size;
-		error = disable_inout(&iop);
-		break;
-	case PCIBAR_MEM32:
-	case PCIBAR_MEM64:
-		bzero(&mr, sizeof(struct mem_range));
-		mr.name = dev->name;
-		mr.base = dev->bar[idx].addr;
-		mr.size = dev->bar[idx].size;
-		error = disable_mem(&mr);
-		break;
-	default:
-		error = EINVAL;
-		break;
-	}
-	assert(error == 0);
-}
-
 /* Are we decoding i/o port accesses for the emulated pci device? */
 static int
 porten(struct pci_vdev *dev)
@@ -1990,21 +1930,23 @@ pci_emul_cmdsts_write(struct pci_vdev *dev, int coff, uint32_t new, int bytes)
 		case PCIBAR_IO:
 		/* I/O address space decoding changed? */
 			if (changed & PCIM_CMD_PORTEN) {
-				if (porten(dev))
-					enable_bar(dev, i);
-				else
-					disable_bar(dev, i);
+				if (porten(dev)) {
+					register_bar(dev, i);
+				} else {
+					unregister_bar(dev, i);
+				}
 			}
 			break;
 		case PCIBAR_MEM32:
 		case PCIBAR_MEM64:
 		/* MMIO address space decoding changed? */
 			if (changed & PCIM_CMD_MEMEN) {
-				if (memen(dev))
-					enable_bar(dev, i);
-				else
-					disable_bar(dev, i);
+				if (memen(dev)) {
+					register_bar(dev, i);
+				} else {
+					unregister_bar(dev, i);
 				}
+			}
 			break;
 		default:
 			assert(0);
