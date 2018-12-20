@@ -193,6 +193,30 @@ write_config(struct pci_device *phys_dev, long reg, int width, uint32_t data)
 	return temp;
 }
 
+int
+passthrou_porten(struct pci_vdev *dev)
+{
+	struct passthru_dev *ptdev;
+	uint16_t cmd;
+
+	ptdev = (struct passthru_dev *) dev->arg;
+	pci_device_cfg_read_u16(ptdev->phys_dev, &cmd, PCIR_COMMAND);
+
+	return (cmd & PCIM_CMD_PORTEN);
+}
+
+int
+passthrou_memen(struct pci_vdev *dev)
+{
+	struct passthru_dev *ptdev;
+	uint16_t cmd;
+
+	ptdev = (struct passthru_dev *) dev->arg;
+	pci_device_cfg_read_u16(ptdev->phys_dev, &cmd, PCIR_COMMAND);
+
+	return (cmd & PCIM_CMD_MEMEN);
+}
+
 static int
 ptdev_msi_remap(struct vmctx *ctx, struct passthru_dev *ptdev,
 		uint64_t addr, uint16_t msg, int maxmsgnum)
@@ -1135,12 +1159,16 @@ pciaccess_cleanup(void)
 	pthread_mutex_unlock(&ref_cnt_mtx);
 }
 
+//#define PTDEBUG
 #define	PCI_EMUL_MEMBASE64	0x200000000UL
 #define	PCI_EMUL_MEMLIMIT64	0x300000000UL
-void passthru_update_bar_addr(struct vmctx *ctx, struct pci_vdev *dev,
+void passthru_update_bar_addr(struct pci_vdev *dev,
 		int idx, uint64_t addr)
 {
 	struct passthru_dev *ptdev;
+#ifndef PTDEBUG
+	struct vmctx *ctx;
+#endif
 	int bar;
 
 	if (!dev->arg) {
@@ -1148,6 +1176,9 @@ void passthru_update_bar_addr(struct vmctx *ctx, struct pci_vdev *dev,
 		return;
 	}
 	ptdev = (struct passthru_dev *) dev->arg;
+#ifndef PTDEBUG
+	ctx = dev->vmctx;
+#endif
 
 	bar = idx;
 	if (ptdev->bar[idx].type == PCIBAR_MEMHI64)
@@ -1157,11 +1188,15 @@ void passthru_update_bar_addr(struct vmctx *ctx, struct pci_vdev *dev,
 			ptdev->bar[idx].type == PCIBAR_IO)
 			return;
 
-	if (dev->bar[bar].addr + ptdev->bar[bar].size > PCI_EMUL_MEMLIMIT64 ||
-			addr + ptdev->bar[bar].size > PCI_EMUL_MEMLIMIT64)
+	if ((addr + ptdev->bar[bar].size > PCI_EMUL_MEMLIMIT64) ||
+		 (addr + ptdev->bar[bar].size < PCI_EMUL_MEMBASE64))
 		return;
 
-#if 0
+	if ((ptdev->bar[bar].addr + ptdev->bar[bar].size > PCI_EMUL_MEMLIMIT64) ||
+		 (ptdev->bar[bar].addr + ptdev->bar[bar].size < PCI_EMUL_MEMBASE64))
+		return;
+
+#ifdef PTDEBUG
 	printf("lskakaxi, unmap_ptdev, gpa[%lx] size[%lx] hpa[%lx]\n\r",
 			dev->bar[bar].addr, ptdev->bar[bar].size,
 			ptdev->bar[bar].addr);

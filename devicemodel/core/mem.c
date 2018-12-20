@@ -102,11 +102,9 @@ mmio_rb_add(struct mmio_rb_tree *rbt, struct mmio_rb_range *new)
 	overlap = RB_INSERT(mmio_rb_tree, rbt, new);
 
 	if (overlap != NULL) {
-#ifdef RB_DEBUG
 		printf("overlap detected: new %lx:%lx, tree %lx:%lx\n",
 		       new->mr_base, new->mr_end,
 		       overlap->mr_base, overlap->mr_end);
-#endif
 
 		return -1;
 	}
@@ -218,6 +216,7 @@ register_mem_int(struct mmio_rb_tree *rbt, struct mem_range *memp)
 		if (mmio_rb_lookup(rbt, memp->base, &entry) != 0)
 			err = mmio_rb_add(rbt, mrp);
 		pthread_rwlock_unlock(&mmio_rwlock);
+		fprintf(stderr, "%s mem range[%lx, %lx] err[%d]\r\n", __func__, memp->base, memp->size, err);
 		if (err)
 			free(mrp);
 	} else
@@ -337,6 +336,7 @@ unregister_mem(struct mem_range *memp)
 
 	pthread_rwlock_wrlock(&mmio_rwlock);
 	err = mmio_rb_lookup(&mmio_rb_root, memp->base, &entry);
+	fprintf(stderr, "%s mem range[%lx, %lx] err[%d]\r\n", __func__, memp->base, memp->size, err);
 	if (err == 0) {
 		mr = &entry->mr_param;
 		assert(mr->name == memp->name);

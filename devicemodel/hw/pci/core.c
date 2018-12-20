@@ -34,6 +34,7 @@
 #include <strings.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <pciaccess.h>
 
 #include "vmmapi.h"
 #include "acpi.h"
@@ -488,6 +489,7 @@ modify_bar_registration(struct pci_vdev *dev, int idx, int registration)
 	struct inout_port iop;
 	struct mem_range mr;
 
+	fprintf(stderr, "idx[%d] reg[%d]\n\r", idx, registration);
 	switch (dev->bar[idx].type) {
 	case PCIBAR_IO:
 		bzero(&iop, sizeof(struct inout_port));
@@ -516,6 +518,7 @@ modify_bar_registration(struct pci_vdev *dev, int idx, int registration)
 			error = register_mem(&mr);
 		} else
 			error = unregister_mem(&mr);
+		fprintf(stderr, "un/register_mem error[%d]\r\n", error);
 		break;
 	default:
 		error = EINVAL;
@@ -536,13 +539,18 @@ register_bar(struct pci_vdev *dev, int idx)
 	modify_bar_registration(dev, idx, 1);
 }
 
+int passthrou_memen(struct pci_vdev *dev);
+int passthrou_porten(struct pci_vdev *dev);
 /* Are we decoding i/o port accesses for the emulated pci device? */
 static int
 porten(struct pci_vdev *dev)
 {
 	uint16_t cmd;
 
-	cmd = pci_get_cfgdata16(dev, PCIR_COMMAND);
+	if (!strcmp("passthru", dev->dev_ops->class_name))
+		return passthrou_porten(dev);
+	else
+		cmd = pci_get_cfgdata16(dev, PCIR_COMMAND);
 
 	return (cmd & PCIM_CMD_PORTEN);
 }
@@ -553,12 +561,15 @@ memen(struct pci_vdev *dev)
 {
 	uint16_t cmd;
 
-	cmd = pci_get_cfgdata16(dev, PCIR_COMMAND);
+	if (!strcmp("passthru", dev->dev_ops->class_name))
+		return passthrou_memen(dev);
+	else
+		cmd = pci_get_cfgdata16(dev, PCIR_COMMAND);
 
 	return (cmd & PCIM_CMD_MEMEN);
 }
 
-void passthru_update_bar_addr(struct vmctx *ctx, struct pci_vdev *dev,
+void passthru_update_bar_addr(struct pci_vdev *dev,
 			int idx, uint64_t addr);
 /*
  * Update the MMIO or I/O address that is decoded by the BAR register.
@@ -583,12 +594,15 @@ update_bar_address(struct  pci_vdev *dev, uint64_t addr, int idx, int type)
 	switch (type) {
 	case PCIBAR_IO:
 	case PCIBAR_MEM32:
+		passthru_update_bar_addr(dev, idx, addr);
 		orig_addr = dev->bar[idx].addr;
 		dev->bar[idx].addr = addr;
 		printf("lskakaxi, 32 update bar[%d] addr[%lx] to [%lx]\r\n",
 				idx, orig_addr, dev->bar[idx].addr);
 		break;
 	case PCIBAR_MEM64:
+		passthru_update_bar_addr(dev, idx,
+				(dev->bar[idx].addr & ~0xffffffffUL) | addr);
 		orig_addr = dev->bar[idx].addr;
 		dev->bar[idx].addr &= ~0xffffffffUL;
 		dev->bar[idx].addr |= addr;
@@ -596,6 +610,8 @@ update_bar_address(struct  pci_vdev *dev, uint64_t addr, int idx, int type)
 				idx, orig_addr, dev->bar[idx].addr);
 		break;
 	case PCIBAR_MEMHI64:
+		passthru_update_bar_addr(dev, idx,
+				(dev->bar[idx-1].addr & 0xffffffff) | addr);
 		orig_addr = dev->bar[idx].addr;
 		dev->bar[idx].addr &= 0xffffffff;
 		dev->bar[idx].addr |= addr;
@@ -2048,6 +2064,8 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 			 * Ignore writes to BAR registers that are not
 			 * 4-byte aligned.
 			 */
+			fprintf(stderr, "cfgwrite: bus[%d], slot[%d], coff[%x] bytes[%d] eax[%x]\r\n",
+					bus, slot, coff, bytes, *eax);
 			if (bytes != 4 || (coff & 0x3) != 0)
 				return;
 			idx = (coff - PCIR_BAR(0)) / 4;
@@ -2072,7 +2090,6 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 				addr = bar = *eax & mask;
 				bar |= PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_32;
 				if (addr != dev->bar[idx].addr) {
-					passthru_update_bar_addr(ctx, dev, idx, addr);
 					update_bar_address(dev, addr, idx,
 							   PCIBAR_MEM32);
 				}
@@ -2082,8 +2099,6 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 				bar |= PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64 |
 				       PCIM_BAR_MEM_PREFETCH;
 				if (addr != (uint32_t)dev->bar[idx].addr) {
-					passthru_update_bar_addr(ctx, dev, idx,
-						(dev->bar[idx].addr & ~0xffffffffUL) | addr);
 					update_bar_address(dev, addr, idx,
 							   PCIBAR_MEM64);
 				}
@@ -2094,8 +2109,6 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 				addr = ((uint64_t)*eax << 32) & mask;
 				bar = addr >> 32;
 				if (bar != dev->bar[idx - 1].addr >> 32) {
-					passthru_update_bar_addr(ctx, dev, idx,
-						(dev->bar[idx-1].addr & 0xffffffff) | addr);
 					update_bar_address(dev, addr, idx - 1,
 							   PCIBAR_MEMHI64);
 				}
