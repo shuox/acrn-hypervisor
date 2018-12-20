@@ -62,19 +62,7 @@ static char bootargs[STR_LEN];
 const struct e820_entry e820_default_entries[NUM_E820_ENTRIES] = {
 	{	/* 0 to mptable/smbios/acpi */
 		.baseaddr =  0x00000000,
-		.length   =  0xA0000,
-		.type     =  E820_TYPE_RAM
-	},
-
-	{	/* VGA MMIO address */
-		.baseaddr =  0xA0000,
-		.length   =  0x20000,
-		.type     =  E820_TYPE_RESERVED
-	},
-
-	{	/* ram */
-		.baseaddr =  0xC0000,
-		.length   =  0x2F000,
+		.length   =  0xEF000,
 		.type     =  E820_TYPE_RAM
 	},
 

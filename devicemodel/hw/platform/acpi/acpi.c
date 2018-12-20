@@ -364,7 +364,7 @@ basl_fwrite_fadt(FILE *fp, struct vmctx *ctx)
 	EFPRINTF(fp, "[0002]\t\tBoot Flags (decoded below) : 0000\n");
 	EFPRINTF(fp, "\t\t\tLegacy Devices Supported (V2) : 0\n");
 	EFPRINTF(fp, "\t\t\t8042 Present on ports 60/64 (V2) : 0\n");
-	EFPRINTF(fp, "\t\t\tVGA Not Present (V4) : 0\n");
+	EFPRINTF(fp, "\t\t\tVGA Not Present (V4) : 1\n");
 	EFPRINTF(fp, "\t\t\tMSI Not Supported (V4) : 0\n");
 	EFPRINTF(fp, "\t\t\tPCIe ASPM Not Supported (V4) : 1\n");
 	EFPRINTF(fp, "\t\t\tCMOS RTC Not Present (V5) : 0\n");

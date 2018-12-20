@@ -111,24 +111,12 @@ static inline void init_pmtmr_port(struct acrn_vm *vm)
 	}
 }
 
-static inline void init_passthrou_ports(struct acrn_vm *vm)
-{
-
-	/* PM1A */
-	//allow_guest_pio_access(vm, 0x400, 8);
-	/* SMI CMD */
-	//allow_guest_pio_access(vm, 0xb2, 1);
-	/* VGA */
-	allow_guest_pio_access(vm, 0x3B0, 16);
-}
-
 void vm_setup_cpu_state(struct acrn_vm *vm)
 {
 	vm_setup_cpu_px(vm);
 	vm_setup_cpu_cx(vm);
 	init_cx_port(vm);
 	init_pmtmr_port(vm);
-	init_passthrou_ports(vm);
 }
 
 /* This function is for power management Sx state implementation,
