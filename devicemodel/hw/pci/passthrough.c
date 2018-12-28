@@ -1361,9 +1361,17 @@ passthru_cfgread(struct vmctx *ctx, int vcpu, struct pci_vdev *dev,
 		*rv &= ~PCIM_GMCH_CTL_GMS;
 	}
 
+	if ((PCI_BDF(dev->bus, dev->slot, dev->func) == PCI_BDF_GPU)
+		&& (coff == PCIR_SUBCLASS)) {
+		*rv |= PCIS_DISPLAY_OTHER;
+		printf("lskakaxi, it's DISPLAY_OTHER device!\n\r");
+	}
+
+#if 0
 	if (ptdev->phys_bdf == PCI_BDF_GPU && coff == PCIR_ASLS_CTL && opregion_mapped) {
 		*rv = ACPI_OPREGION_GPA | (opregion_hpa & ~PAGE_MASK);
 	}
+#endif
 
 	return 0;
 }

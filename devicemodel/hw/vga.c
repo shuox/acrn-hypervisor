@@ -362,7 +362,7 @@ vga_mem_rd_handler(struct vmctx *ctx, uint64_t addr, void *arg1)
 		/*
 		 * monochrome text mode: base 0xb0000 size 32kb
 		 */
-		assert(0);
+		//assert(0);
 	case 0x3:
 		/*
 		 * color text mode and CGA: base 0xb8000 size 32kb
@@ -801,7 +801,7 @@ vga_port_in_handler(struct vmctx *ctx, int in, int port, int bytes,
 			break;
 		default:
 			//printf("XXX VGA CRTC: inb 0x%04x at index %d\n", port, sc->vga_crtc.crtc_index);
-			assert(0);
+			//assert(0);
 			break;
 		}
 		break;
@@ -830,7 +830,7 @@ vga_port_in_handler(struct vmctx *ctx, int in, int port, int bytes,
 			break;
 		default:
 			//printf("XXX VGA ATC inb 0x%04x at index %d\n", port , sc->vga_atc.atc_index);
-			assert(0);
+			//assert(0);
 			break;
 		}
 		break;
@@ -856,7 +856,7 @@ vga_port_in_handler(struct vmctx *ctx, int in, int port, int bytes,
 			break;
 		default:
 			//printf("XXX VGA SEQ: inb 0x%04x at index %d\n", port, sc->vga_seq.seq_index);
-			assert(0);
+			//assert(0);
 			break;
 		}
 		break;
@@ -903,7 +903,7 @@ vga_port_in_handler(struct vmctx *ctx, int in, int port, int bytes,
 			break;
 		default:
 			//printf("XXX VGA GC: inb 0x%04x at index %d\n", port, sc->vga_crtc.crtc_index);
-			assert(0);
+			//assert(0);
 			break;
 		}
 		break;
@@ -1037,7 +1037,7 @@ vga_port_out_handler(struct vmctx *ctx, int in, int port, int bytes,
 			break;
 		default:
 			//printf("XXX VGA CRTC: outb 0x%04x, 0x%02x at index %d\n", port, val, sc->vga_crtc.crtc_index);
-			assert(0);
+			//assert(0);
 			break;
 		}
 		break;
@@ -1072,7 +1072,7 @@ vga_port_out_handler(struct vmctx *ctx, int in, int port, int bytes,
 				break;
 			default:
 				//printf("XXX VGA ATC: outb 0x%04x, 0x%02x at index %d\n", port, val, sc->vga_atc.atc_index);
-				assert(0);
+				//assert(0);
 				break;
 			}
 		}
@@ -1108,7 +1108,7 @@ vga_port_out_handler(struct vmctx *ctx, int in, int port, int bytes,
 			break;
 		default:
 			//printf("XXX VGA SEQ: outb 0x%04x, 0x%02x at index %d\n", port, val, sc->vga_seq.seq_index);
-			assert(0);
+			//assert(0);
 			break;
 		}
 		break;
@@ -1188,7 +1188,7 @@ vga_port_out_handler(struct vmctx *ctx, int in, int port, int bytes,
 			break;
 		default:
 			//printf("XXX VGA GC: outb 0x%04x, 0x%02x at index %d\n", port, val, sc->vga_gc.gc_index);
-			assert(0);
+			//assert(0);
 			break;
 		}
 		break;
@@ -1255,7 +1255,7 @@ vga_port_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 		}
 		break;
 	default:
-		assert(0);
+		//assert(0);
 		return (-1);
 	}
 

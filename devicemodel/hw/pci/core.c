@@ -670,6 +670,10 @@ pci_emul_alloc_pbar(struct pci_vdev *pdi, int idx, uint64_t hostbase,
 		mask = PCIM_BAR_MEM_BASE;
 		lobits = PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64 |
 			PCIM_BAR_MEM_PREFETCH;
+		if (size == 0x1000000) {
+			lobits &= ~PCIM_BAR_MEM_PREFETCH;
+			printf("lskakaxi, set 16M bar for igdkmd64 non-prefetchable!\r\n");
+		}
 		break;
 	case PCIBAR_MEM32:
 		baseptr = &pci_emul_membase32;
@@ -2096,8 +2100,13 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 				break;
 			case PCIBAR_MEM64:
 				addr = bar = *eax & mask;
-				bar |= PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64 |
-				       PCIM_BAR_MEM_PREFETCH;
+				if (dev->bar[idx].size == 0x1000000) {
+					bar |= PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64;
+					printf("lskakaxi, set 16M bar for igdkmd64 non-prefetchable!\r\n");
+				} else {
+					bar |= PCIM_BAR_MEM_SPACE | PCIM_BAR_MEM_64 |
+						PCIM_BAR_MEM_PREFETCH;
+				}
 				if (addr != (uint32_t)dev->bar[idx].addr) {
 					update_bar_address(dev, addr, idx,
 							   PCIBAR_MEM64);
