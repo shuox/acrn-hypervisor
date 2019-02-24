@@ -172,7 +172,7 @@ vlapic_build_id(const struct acrn_vlapic *vlapic)
 	 * Hence ACRN needs to maintain physical APIC ids for partition
 	 * mode.
 	 */
-	vlapic_id = per_cpu(lapic_id, vcpu->pcpu_id);
+	vlapic_id = per_cpu(lapic_id, pcpuid_from_vcpu(vcpu));
 #else
 	if (is_sos_vm(vcpu->vm)) {
 		/* Get APIC ID sequence format from cpu_storage */
@@ -514,11 +514,13 @@ vlapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 		dev_dbg(ACRN_DBG_LAPIC, "vlapic is software disabled, ignoring interrupt %u", vector);
 		ret = false;
 	} else if (is_apicv_advanced_feature_supported()) {
+		uint16_t pcpu_id = pcpuid_from_vcpu(vlapic->vcpu);
+
 		pending_intr = apicv_set_intr_ready(vlapic, vector);
 
 		vlapic_set_tmr(vlapic, vector, level);
 
-		if ((pending_intr != 0) && (get_cpu_id() != vlapic->vcpu->pcpu_id)) {
+		if ((pending_intr != 0) && (get_cpu_id() != pcpu_id)) {
 			/*
 			 * Send interrupt to vCPU via posted interrupt way:
 			 * 1. If target vCPU is in non-root mode(running),
@@ -530,7 +532,7 @@ vlapic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 			 *    it to vCPU in next vmentry.
 			 */
 			bitmap_set_lock(ACRN_REQUEST_EVENT, &vlapic->vcpu->arch.pending_req);
-			apicv_post_intr(vlapic->vcpu->pcpu_id);
+			apicv_post_intr(pcpu_id);
 			ret = false;
 		} else {
 			ret = (pending_intr != 0);
@@ -2039,7 +2041,7 @@ vlapic_x2apic_pt_icr_access(struct acrn_vm *vm, uint64_t val)
 			break;
 			default:
 				/* convert the dest from virtual apic_id to physical apic_id */
-				papic_id = per_cpu(lapic_id, target_vcpu->pcpu_id);
+				papic_id = per_cpu(lapic_id, pcpuid_from_vcpu(target_vcpu));
 				dev_dbg(ACRN_DBG_LAPICPT,
 					"%s vapic_id: 0x%08lx papic_id: 0x%08lx icr_low:0x%08lx",
 					 __func__, vapic_id, papic_id, icr_low);
