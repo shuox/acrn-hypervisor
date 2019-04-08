@@ -34,7 +34,7 @@ static void sched_timer_callback(void *data)
 
 	get_schedule_lock(pcpu_id);
 	if (!list_empty(&ctx->runqueue)) {
-		make_reschedule_request(pcpu_id);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	}
 	release_schedule_lock(pcpu_id);
 }
@@ -400,7 +400,7 @@ void yield(void)
 		TRACE_6C(TRACE_SCHED_YIELD, (uint8_t)ctx->curr_obj->name[0], (uint8_t)ctx->curr_obj->name[1],
 					(uint8_t)ctx->curr_obj->name[2], (uint8_t)ctx->curr_obj->name[6],
 					(uint8_t)ctx->curr_obj->name[7],(uint8_t)ctx->curr_obj->name[8]);
-		make_reschedule_request(pcpu_id);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	}
 	release_schedule_lock(pcpu_id);
 }
