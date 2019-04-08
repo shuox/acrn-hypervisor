@@ -540,7 +540,7 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 	vlapic_free(vcpu);
 	if (per_cpu(ever_run_vcpu, pcpu_id) == vcpu)
 		per_cpu(ever_run_vcpu, pcpu_id) = NULL;
-	free_task(&vcpu->sched_obj.task_rc);
+	free_task(&vcpu->sched_obj.data);
 	vcpu->state = VCPU_OFFLINE;
 }
 
@@ -705,11 +705,11 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
 
 /**
  * @pre vm != NULL
- * @pre task_rc != NULL
+ * @pre data != NULL
  *
  * help function for vcpu create
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_task_rc *task_rc)
+int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_data *data)
 {
 	int32_t ret = 0;
 	struct acrn_vcpu *vcpu = NULL;
@@ -727,17 +727,17 @@ int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_task_rc *task_rc)
 		conf = get_vm_config(vm->vm_id);
 		orig_val = msr_read(MSR_IA32_PQR_ASSOC);
 		final_val = (orig_val & 0xffffffffUL) | (((uint64_t)conf->clos) << 32UL);
-		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, task_rc->pcpu_id);
+		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, data->pcpu_id);
 	}
 
 	INIT_LIST_HEAD(&vcpu->sched_obj.run_list);
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
 	vcpu->sched_obj.thread = vcpu_thread;
-	(void)memcpy_s(&vcpu->sched_obj.task_rc, sizeof(struct sched_task_rc), task_rc, sizeof(struct sched_task_rc));
-	vcpu->sched_obj.host_sp = build_stack_frame(vcpu);
-	vcpu->sched_obj.prepare_switch_out = context_switch_out;
-	vcpu->sched_obj.prepare_switch_in = context_switch_in;
+	(void)memcpy_s(&vcpu->sched_obj.data, sizeof(struct sched_data), data, sizeof(struct sched_data));
+	vcpu->sched_obj.data.host_sp = build_stack_frame(vcpu);
+	vcpu->sched_obj.switch_out = context_switch_out;
+	vcpu->sched_obj.switch_in = context_switch_in;
 
 	return ret;
 }

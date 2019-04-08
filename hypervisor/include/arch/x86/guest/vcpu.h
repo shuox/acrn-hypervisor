@@ -668,9 +668,9 @@ void schedule_vcpu(struct acrn_vcpu *vcpu);
  * Create a vcpu for the vm, and mapped to the pcpu.
  *
  * @param[inout] vm pointer to vm data structure
- * @param[in] task resource pointer to sched_task_rc data structure
+ * @param[in] task resource pointer to sched_data structure
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_task_rc *task_rc);
+int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_data *data);
 
 /**
  * @brief get physical destination cpu mask

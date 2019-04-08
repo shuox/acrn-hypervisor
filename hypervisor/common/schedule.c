@@ -77,24 +77,24 @@ static void update_sched_timer(struct sched_context *ctx, struct sched_object *p
 		if (timer_is_started(&ctx->timer)) {
 			del_timer(&ctx->timer);
 			if (ctx->timer.fire_tsc > now) {
-				prev->task_rc.left_cycles = ctx->timer.fire_tsc - now;
+				prev->data.left_cycles = ctx->timer.fire_tsc - now;
 			} else {
-				prev->task_rc.left_cycles = prev->task_rc.slice_cycles;
+				prev->data.left_cycles = prev->data.slice_cycles;
 			}
 		} else {
-			prev->task_rc.left_cycles = prev->task_rc.slice_cycles;
+			prev->data.left_cycles = prev->data.slice_cycles;
 		}
 		TRACE_6C(TRACE_SCHED_OBJ, (uint8_t)prev->name[0], (uint8_t)prev->name[1], (uint8_t)prev->name[2],
 					(uint8_t)prev->name[6],(uint8_t)prev->name[7],(uint8_t)prev->name[8]);
-		TRACE_2L(TRACE_SCHED_SLICE_OUT, prev->task_rc.left_cycles, prev->task_rc.slice_cycles);
+		TRACE_2L(TRACE_SCHED_SLICE_OUT, prev->data.left_cycles, prev->data.slice_cycles);
 	}
 
 	if (!is_idle(next, pcpu_id)) {
-		ctx->timer.fire_tsc = now + next->task_rc.left_cycles;
+		ctx->timer.fire_tsc = now + next->data.left_cycles;
 		(void)add_timer(&ctx->timer);
 		TRACE_6C(TRACE_SCHED_OBJ, (uint8_t)next->name[0], (uint8_t)next->name[1], (uint8_t)next->name[2],
 					(uint8_t)next->name[6],(uint8_t)next->name[7],(uint8_t)next->name[8]);
-		TRACE_2L(TRACE_SCHED_SLICE_IN, next->task_rc.left_cycles, next->task_rc.slice_cycles);
+		TRACE_2L(TRACE_SCHED_SLICE_IN, next->data.left_cycles, next->data.slice_cycles);
 	}
 }
 
@@ -143,12 +143,12 @@ static void pin_task(uint16_t pcpu_id, uint16_t task_id)
 
 
 /**
- * @pre task_rc != NULL
+ * @pre data != NULL
  */
-int32_t allocate_task(struct sched_task_rc *task_rc)
+int32_t allocate_task(struct sched_data *data)
 {
-	uint16_t pcpu_id = task_rc->pcpu_id;
-	uint16_t task_id = task_rc->task_id;
+	uint16_t pcpu_id = data->pcpu_id;
+	uint16_t task_id = data->task_id;
 	uint16_t i, pcpu_nums = get_pcpu_nums();
 	int ret = 0;
 
@@ -205,10 +205,10 @@ int32_t allocate_task(struct sched_task_rc *task_rc)
 
 	if (ret == 0) {
 		pin_task(pcpu_id, task_id);
-		task_rc->pcpu_id = pcpu_id;
-		task_rc->task_id = task_id;
-		task_rc->left_cycles = task_rc->slice_cycles = CONFIG_TASK_SLICE_MS * CYCLES_PER_MS;
-		pr_err("%s: pcpu_id %d, task_id 0x%x, cycles %lld\n", __func__, pcpu_id, task_id, task_rc->slice_cycles);
+		data->pcpu_id = pcpu_id;
+		data->task_id = task_id;
+		data->left_cycles = data->slice_cycles = CONFIG_TASK_SLICE_MS * CYCLES_PER_MS;
+		pr_err("%s: pcpu_id %d, task_id 0x%x, cycles %lld\n", __func__, pcpu_id, task_id, data->slice_cycles);
 	}
 
 	spinlock_release(&task_lock);
@@ -216,12 +216,12 @@ int32_t allocate_task(struct sched_task_rc *task_rc)
 }
 
 /**
- * @pre task_rc != NULL
+ * @pre data != NULL
  */
-void free_task(struct sched_task_rc *task_rc)
+void free_task(struct sched_data *data)
 {
-	uint16_t pcpu_id = task_rc->pcpu_id;
-	uint16_t task_id = task_rc->task_id;
+	uint16_t pcpu_id = data->pcpu_id;
+	uint16_t task_id = data->task_id;
 
 	spinlock_obtain(&task_lock);
 	pr_err("%s: pcpu_id %d, task_id 0x%x\n", __func__, pcpu_id, task_id);
@@ -350,20 +350,20 @@ struct sched_object *get_cur_sched_obj(uint16_t pcpu_id)
  */
 uint16_t pcpuid_from_sched_obj(const struct sched_object *obj)
 {
-	return obj->task_rc.pcpu_id;
+	return obj->data.pcpu_id;
 }
 
 static void prepare_switch(struct sched_object *prev, struct sched_object *next)
 {
-	if ((prev != NULL) && (prev->prepare_switch_out != NULL)) {
-		prev->prepare_switch_out(prev);
+	if ((prev != NULL) && (prev->switch_out != NULL)) {
+		prev->switch_out(prev);
 	}
 
 	/* update current object */
 	get_cpu_var(sched_ctx).curr_obj = next;
 
-	if ((next != NULL) && (next->prepare_switch_in != NULL)) {
-		next->prepare_switch_in(next);
+	if ((next != NULL) && (next->switch_in != NULL)) {
+		next->switch_in(next);
 	}
 }
 
@@ -386,7 +386,7 @@ void schedule(void)
 		update_sched_timer(ctx, prev, next);
 		release_schedule_lock(pcpu_id);
 
-		arch_switch_to(&prev->host_sp, &next->host_sp);
+		arch_switch_to(&prev->data.host_sp, &next->data.host_sp);
 	}
 }
 
@@ -423,8 +423,8 @@ void switch_to_idle(run_thread_t idle_thread)
 	snprintf(idle_name, 16U, "idle%hu", pcpu_id);
 	(void)strncpy_s(idle->name, 16U, idle_name, 16U);
 	idle->thread = idle_thread;
-	idle->prepare_switch_out = NULL;
-	idle->prepare_switch_in = NULL;
+	idle->switch_out = NULL;
+	idle->switch_in = NULL;
 	get_cpu_var(sched_ctx).curr_obj = idle;
 
 	run_sched_thread(idle);

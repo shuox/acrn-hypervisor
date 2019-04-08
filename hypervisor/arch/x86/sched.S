@@ -6,11 +6,11 @@
 
 /*
  * Function schedule() will finally call arch_switch_to here for x86 platform, which use
- * the pointer of previous & next sched_obj->host_sp as the input parameters (rdi & rsi).
+ * the pointer of previous & next sched_obj->data.host_sp as the input parameters (rdi & rsi).
  *
  * Function arch_switch_to will save rflags, rbx, rbp, r12~r15, and rdi in the previous
  * sched_obj's stack, then switch stack pointer(rsp) from previous to next sched_obj (saved
- * in sched_obj->host_sp) and restore above registers from next sched_obj's stack.
+ * in sched_obj->data.host_sp) and restore above registers from next sched_obj's stack.
  * It make sure the execution context return to the same point of next sched_obj when it got
  * scheduled last time.
  */

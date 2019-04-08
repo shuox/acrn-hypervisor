@@ -19,23 +19,24 @@
 
 struct sched_object;
 typedef void (*run_thread_t)(struct sched_object *obj);
-typedef void (*prepare_switch_t)(struct sched_object *obj);
+typedef void (*switch_t)(struct sched_object *obj);
 
-struct sched_task_rc {
+struct sched_data {
 	uint16_t pcpu_id;
 	uint16_t task_id;
 	uint64_t left_cycles;
 	uint64_t slice_cycles;
+
+	uint64_t host_sp;
 };
 
 struct sched_object {
 	char name[16];
 	struct list_head run_list;
-	struct sched_task_rc task_rc;
-	uint64_t host_sp;
+	struct sched_data data;
 	run_thread_t thread;
-	prepare_switch_t prepare_switch_out;
-	prepare_switch_t prepare_switch_in;
+	switch_t switch_out;
+	switch_t switch_in;
 };
 
 struct sched_context {
@@ -52,8 +53,8 @@ void switch_to_idle(run_thread_t idle_thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
 
-int32_t allocate_task(struct sched_task_rc *task_rc);
-void free_task(struct sched_task_rc *task_rc);
+int32_t allocate_task(struct sched_data *task_rc);
+void free_task(struct sched_data *task_rc);
 
 void add_to_cpu_runqueue(struct sched_object *obj, uint16_t pcpu_id);
 void add_to_cpu_runqueue_tail(struct sched_object *obj, uint16_t pcpu_id);

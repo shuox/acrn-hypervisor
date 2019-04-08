@@ -270,15 +270,15 @@ int32_t hcall_create_vcpu(struct acrn_vm *vm, uint16_t vmid, uint64_t param)
 		pr_err("%s: Unable copy param to vm\n", __func__);
 	        ret = -1;
 	} else {
-		struct sched_task_rc task_rc;
+		struct sched_data data;
 
-		task_rc.pcpu_id = INVALID_CPU_ID;
-		task_rc.task_id = INVALID_TASK_ID;
-		ret = allocate_task(&task_rc);
+		data.pcpu_id = INVALID_CPU_ID;
+		data.task_id = INVALID_TASK_ID;
+		ret = allocate_task(&data);
 		if (ret < 0) {
 			pr_err("%s: No physical available\n", __func__);
 		} else {
-			ret = prepare_vcpu(target_vm, &task_rc);
+			ret = prepare_vcpu(target_vm, &data);
 		}
 	}
 

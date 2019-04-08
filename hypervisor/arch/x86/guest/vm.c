@@ -656,20 +656,20 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 
 		for (i = 0U; i < get_pcpu_nums(); i++) {
 			if (bitmap_test(i, &vm_config->pcpu_bitmap)) {
-				struct sched_task_rc task_rc;
+				struct sched_data data;
 
-				task_rc.pcpu_id = i;
+				data.pcpu_id = i;
 				if (is_sos_vm(vm)) {
-					task_rc.task_id = 0U;
+					data.task_id = 0U;
 				} else {
-					task_rc.task_id = TASK_ID_MONOPOLY;
+					data.task_id = TASK_ID_MONOPOLY;
 				}
 
-				err = allocate_task(&task_rc);
+				err = allocate_task(&data);
 				if (err != 0) {
 					break;
 				}
-				err = prepare_vcpu(vm, &task_rc);
+				err = prepare_vcpu(vm, &data);
 				if (err != 0) {
 					break;
 				}
