@@ -92,7 +92,7 @@ struct vm_isa_irq {
 void	*vm_create_devmem(struct vmctx *ctx, int segid, const char *name,
 			  size_t len);
 int	vm_get_device_fd(struct vmctx *ctx);
-struct	vmctx *vm_create(const char *name, uint64_t req_buf);
+struct	vmctx *vm_create(const char *name, uint64_t req_buf, int*vcpu_num);
 void	vm_pause(struct vmctx *ctx);
 void	vm_reset(struct vmctx *ctx);
 int	vm_create_ioreq_client(struct vmctx *ctx);
