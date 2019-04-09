@@ -119,7 +119,7 @@ int32_t hcall_get_api_version(struct acrn_vm *vm, uint64_t param)
 int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 {
 	uint16_t vm_id;
-	int32_t ret = -1;
+	int32_t ret = -1, i;
 	struct acrn_vm *target_vm = NULL;
 	struct acrn_create_vm cv;
 	struct acrn_vm_config* vm_config = NULL;
@@ -149,10 +149,11 @@ int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 					ret = -1;
 				} else {
 					cv.vmid = target_vm->vm_id;
+					cv.vcpu_num = vm_config->vcpu_num;
 					ret = 0;
 				}
 
-				if (copy_to_gpa(vm, &cv.vmid, param, sizeof(cv.vmid)) != 0) {
+				if (copy_to_gpa(vm, &cv, param, sizeof(cv)) != 0) {
 					pr_err("%s: Unable copy param to vm\n", __func__);
 					ret = -1;
 				}
@@ -161,6 +162,22 @@ int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 	} else {
 		pr_err("%s: Unable copy param to vm\n", __func__);
 	        ret = -1;
+	}
+
+	if (vm_config) {
+		for (i = 0; i < vm_config->vcpu_num; i++) {
+			struct sched_data data;
+			data.pcpu_id = INVALID_CPU_ID;
+			data.task_id = INVALID_TASK_ID;
+			ret = allocate_task(&data);
+			if (ret < 0) {
+				pr_err("%s: No physical cpu avaiable", __func__);
+			} else {
+				ret = prepare_vcpu(target_vm, &data);
+			}
+		}
+	} else {
+		pr_fatal("vm_config is nULL!");
 	}
 
 	return ret;

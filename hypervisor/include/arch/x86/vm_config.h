@@ -59,6 +59,7 @@ struct acrn_vm_config {
 	uint16_t clos;					/* if guest_flags has GUEST_FLAG_CLOS_REQUIRED, then VM use this CLOS */
 
 	bool			vm_vuart;
+	uint16_t		vcpu_num;
 } __aligned(8);
 
 struct acrn_vm_config *get_vm_config(uint16_t vm_id);
