@@ -38,9 +38,11 @@ static struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE) 
 	INIT_VM_CONFIG(0),
 #endif
 
-#ifdef VM1_CONFIGURED
-	INIT_VM_CONFIG(1),
-#endif
+	{
+		.type = NORMAL_VM,
+		.name = "ACRN GUEST VM",
+		.GUID = {0xd2, 0x79, 0x54, 0x38, 0x25, 0xd6, 0x11, 0xe8, 0x86, 0x4e, 0xcb, 0x7a, 0x18, 0xb3, 0x46, 0x43},
+	},
 
 #ifdef VM2_CONFIGURED
 	INIT_VM_CONFIG(2),
@@ -58,6 +60,24 @@ static struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE) 
 struct acrn_vm_config *get_vm_config(uint16_t vm_id)
 {
 	return &vm_configs[vm_id];
+}
+
+struct acrn_vm_config *get_vm_config_by_uuid(uint8_t *guid, uint16_t *vm_id)
+{
+	unsigned int i, j;
+
+	for (i = 0; i < CONFIG_MAX_VM_NUM; i++) {
+		for (j = 0; j < 16; j++) {
+			if (vm_configs[i].GUID[j] != guid[j])
+				break;
+		}
+		if (j == 16) {
+			if (vm_id)
+				*vm_id = i;
+			return &vm_configs[i];
+		}
+	}
+	return NULL;
 }
 
 /**
@@ -102,7 +122,7 @@ int32_t sanitize_vm_config(void)
 			}
 			break;
 		case NORMAL_VM:
-			ret = -EINVAL;
+			/* NORMAL_VM will be post launched by acrn-dm */
 			break;
 		default:
 			/* Nothing to do for a UNDEFINED_VM, break directly. */

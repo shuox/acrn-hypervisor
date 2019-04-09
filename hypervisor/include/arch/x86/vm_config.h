@@ -62,6 +62,7 @@ struct acrn_vm_config {
 } __aligned(8);
 
 struct acrn_vm_config *get_vm_config(uint16_t vm_id);
+struct acrn_vm_config *get_vm_config_by_uuid(uint8_t *guid, uint16_t *vm_id);
 int32_t sanitize_vm_config(void);
 
 #endif /* VM_CONFIG_H_ */
