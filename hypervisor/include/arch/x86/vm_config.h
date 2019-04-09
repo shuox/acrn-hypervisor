@@ -60,6 +60,7 @@ struct acrn_vm_config {
 
 	bool			vm_vuart;
 	uint16_t		vcpu_num;
+	uint64_t		vcpu_sched_affinity[CONFIG_MAX_VCPUS_PER_VM];
 } __aligned(8);
 
 struct acrn_vm_config *get_vm_config(uint16_t vm_id);

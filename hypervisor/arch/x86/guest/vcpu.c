@@ -540,7 +540,6 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 	vlapic_free(vcpu);
 	if (per_cpu(ever_run_vcpu, pcpu_id) == vcpu)
 		per_cpu(ever_run_vcpu, pcpu_id) = NULL;
-	free_task(&vcpu->sched_obj.data);
 	vcpu->state = VCPU_OFFLINE;
 }
 

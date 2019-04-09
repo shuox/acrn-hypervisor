@@ -23,7 +23,6 @@ typedef void (*switch_t)(struct sched_object *obj);
 
 struct sched_data {
 	uint16_t pcpu_id;
-	uint16_t task_id;
 	uint64_t left_cycles;
 	uint64_t slice_cycles;
 
@@ -53,8 +52,7 @@ void switch_to_idle(run_thread_t idle_thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
 
-int32_t allocate_task(struct sched_data *task_rc);
-void free_task(struct sched_data *task_rc);
+int32_t sched_pick_pcpu(struct sched_data *data, uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity);
 
 void add_to_cpu_runqueue(struct sched_object *obj, uint16_t pcpu_id);
 void add_to_cpu_runqueue_tail(struct sched_object *obj, uint16_t pcpu_id);

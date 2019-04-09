@@ -15,7 +15,7 @@
 
 #define VM0_CONFIG_NAME				"ACRN SOS VM"
 #define VM0_CONFIG_TYPE				SOS_VM
-#define VM0_CONFIG_PCPU_BITMAP			0UL	/* PCPU Bitmap is reserved in SOS_VM */
+#define VM0_CONFIG_PCPU_BITMAP			0xfUL	/* PCPU Bitmap is reserved in SOS_VM */
 #define VM0_CONFIG_FLAGS			GUEST_FLAG_IO_COMPLETION_POLLING
 #define VM0_CONFIG_CLOS				0U
 #define VM0_CONFIG_MEM_START_HPA		0UL

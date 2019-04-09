@@ -15,12 +15,7 @@
 #include <errno.h>
 #include <trace.h>
 
-#define CONFIG_TASK_PER_PCPU 3
 #define CONFIG_TASK_SLICE_MS 100
-
-static uint64_t pcpu_used_bitmap[CONFIG_TASK_PER_PCPU];
-
-static spinlock_t task_lock = { .head = 0U, .tail = 0U };
 
 static inline bool is_idle(struct sched_object *obj, uint16_t pcpu_id)
 {
@@ -128,113 +123,16 @@ void release_schedule_lock(uint16_t pcpu_id)
 	spinlock_release(&ctx->scheduler_lock);
 }
 
-static void pin_task(uint16_t pcpu_id, uint16_t task_id)
+int32_t sched_pick_pcpu(struct sched_data *data, uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity)
 {
-	if (task_id < CONFIG_TASK_PER_PCPU) {
-		bitmap_set_nolock(pcpu_id, &pcpu_used_bitmap[task_id]);
-	} else {
-		uint16_t i;
-
-		for (i = 0U; i < CONFIG_TASK_PER_PCPU; i++) {
-			bitmap_set_nolock(pcpu_id, &pcpu_used_bitmap[i]);
-		}
+	data->pcpu_id = ffs64(cpus_bitmap & vcpu_sched_affinity);
+	if (data->pcpu_id == INVALID_BIT_INDEX) {
+		return -1;
 	}
-}
+	data->left_cycles = data->slice_cycles = CONFIG_TASK_SLICE_MS * CYCLES_PER_MS;
+	pr_info("%s: pcpu_id %d, cycles %lld\n", __func__, data->pcpu_id, data->slice_cycles);
 
-
-/**
- * @pre data != NULL
- */
-int32_t allocate_task(struct sched_data *data)
-{
-	uint16_t pcpu_id = data->pcpu_id;
-	uint16_t task_id = data->task_id;
-	uint16_t i, pcpu_nums = get_pcpu_nums();
-	int ret = 0;
-
-	spinlock_obtain(&task_lock);
-	if ((pcpu_id < pcpu_nums) && (task_id < CONFIG_TASK_PER_PCPU)) {
-		if (bitmap_test(pcpu_id, &pcpu_used_bitmap[task_id]) != 0) {
-			ret = -ENODEV;
-		}
-	} else if ((pcpu_id < pcpu_nums) && (task_id == TASK_ID_MONOPOLY)) {
-		for (i = 0U; i < CONFIG_TASK_PER_PCPU; i++) {
-			if (bitmap_test(pcpu_id, &pcpu_used_bitmap[i]) != 0) {
-				ret = -ENODEV;
-				break;
-			}
-		}
-	} else if (pcpu_id < pcpu_nums) {
-		for (task_id = 0U; task_id < CONFIG_TASK_PER_PCPU; task_id++) {
-			if (bitmap_test(pcpu_id, &pcpu_used_bitmap[task_id]) == 0) {
-				break;
-			}
-		}
-		if (task_id == CONFIG_TASK_PER_PCPU) {
-			ret = -ENODEV;
-		}
-	} else if (task_id == TASK_ID_MONOPOLY) {
-		for (pcpu_id = 0U; pcpu_id < pcpu_nums; pcpu_id++) {
-			for (i = 0U; i < CONFIG_TASK_PER_PCPU; i++) {
-				if (bitmap_test(pcpu_id, &pcpu_used_bitmap[i]) != 0) {
-					break;
-				}
-			}
-			if (i == CONFIG_TASK_PER_PCPU) {
-				break;
-			}
-		}
-		if (pcpu_id == pcpu_nums) {
-			ret = -ENODEV;
-		}
-	} else {
-		for (task_id = 0U; task_id < CONFIG_TASK_PER_PCPU; task_id++) {
-			for (pcpu_id = 0U; pcpu_id < pcpu_nums; pcpu_id++) {
-				if (bitmap_test(pcpu_id, &pcpu_used_bitmap[task_id]) == 0) {
-					break;
-				}
-			}
-			if (pcpu_id < pcpu_nums) {
-				break;
-			}
-		}
-		if (task_id == CONFIG_TASK_PER_PCPU) {
-			ret = -ENODEV;
-		}
-	}
-
-	if (ret == 0) {
-		pin_task(pcpu_id, task_id);
-		data->pcpu_id = pcpu_id;
-		data->task_id = task_id;
-		data->left_cycles = data->slice_cycles = CONFIG_TASK_SLICE_MS * CYCLES_PER_MS;
-		pr_err("%s: pcpu_id %d, task_id 0x%x, cycles %lld\n", __func__, pcpu_id, task_id, data->slice_cycles);
-	}
-
-	spinlock_release(&task_lock);
-	return ret;
-}
-
-/**
- * @pre data != NULL
- */
-void free_task(struct sched_data *data)
-{
-	uint16_t pcpu_id = data->pcpu_id;
-	uint16_t task_id = data->task_id;
-
-	spinlock_obtain(&task_lock);
-	pr_err("%s: pcpu_id %d, task_id 0x%x\n", __func__, pcpu_id, task_id);
-	if (task_id < CONFIG_TASK_PER_PCPU) {
-		bitmap_clear_nolock(pcpu_id, &pcpu_used_bitmap[task_id]);
-	} else {
-		uint16_t i;
-
-		for (i = 0U; i < CONFIG_TASK_PER_PCPU; i++) {
-			bitmap_clear_nolock(pcpu_id, &pcpu_used_bitmap[i]);
-		}
-	}
-	spinlock_release(&task_lock);
+	return 0;
 }
 
 void add_to_cpu_runqueue(struct sched_object *obj, uint16_t pcpu_id)
