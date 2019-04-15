@@ -90,6 +90,7 @@ void default_idle(__unused struct sched_object *obj)
 			cpu_dead();
 		} else {
 			CPU_IRQ_ENABLE();
+			do_softirq();
 			cpu_do_idle();
 			CPU_IRQ_DISABLE();
 		}
