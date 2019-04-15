@@ -15,99 +15,66 @@
 #include <errno.h>
 #include <trace.h>
 
-#define CONFIG_TASK_SLICE_MS 100
+#define CONFIG_TASK_SLICE_MS 20UL
 
-static inline bool is_idle(struct sched_object *obj, uint16_t pcpu_id)
+static inline bool is_idle(struct sched_object *obj)
 {
+	uint16_t pcpu_id = obj->data.pcpu_id;
 	return (obj == &per_cpu(idle, pcpu_id));
 }
 
-static void sched_timer_callback(void *data)
+static void sched_tick_handler(void *data)
 {
 	struct sched_context *ctx = (struct sched_context *)data;
+	struct sched_object *current, *obj;
+	struct list_head *pos, *n;
 	uint16_t pcpu_id = get_cpu_id();
+	uint64_t now = rdtsc();
 
 	get_schedule_lock(pcpu_id);
-	if (!list_empty(&ctx->runqueue)) {
+
+	/* replenish the running cycles */
+	list_for_each_safe(pos, n, &ctx->blocked_queue) {
+		obj = list_entry(pos, struct sched_object, list);
+		obj->data.left_cycles = obj->data.slice_cycles;
+		remove_from_queue(obj);
+		add_to_cpu_runqueue_tail(obj);
+	}
+
+	current = ctx->curr_obj;
+	/* If no vCPU start scheduling, ignore this tick */
+	if (current == NULL || (is_idle(current) && list_empty(&ctx->runqueue))) {
+		release_schedule_lock(pcpu_id);
+		return;
+	}
+	if (!is_idle(current)) {
+		current->data.left_cycles -= now - current->data.last_cycles;
+		current->data.last_cycles = now;
+	}
+	if (current->data.left_cycles <= 0 ) {
 		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	}
 	release_schedule_lock(pcpu_id);
 }
 
-/*
- * Called from schedule(), there are only 3 kind of schedule operations:
- * 1. vcpu first kick to run - schedule_vcpu - add to runlist
- * 2. vcpu pause to PAUSED state - pause_vcpu - remove from runlist
- * 3. vcpu resume to RUNNING state - resume_vcpu - add to runlist
- *
- *      PREV        NEXT         QUEUE       DESC
- *  ===========================================================================================================
- *      idle         A            {A}	     A kick to run
- *                                           -> next sched timeout = now + A.left_cycles
- *       A           A            {A}        Only A is running
- *                                           -> A.left_cycles = A.slice_cycles
- *                                           -> next sched timeout = now + A.left_cycles
- *       A           B           {B, A}      B added in the queue, pre-empt to run
- *                                           -> A is interrupted, A.left_cycles = ctx->timer.fire_tsc - now
- *                                           -> next sched timeout = now + B.left_cycles
- *       B           A           {A, B}      B run out slice, A continue to run with its left_cycles
- *                                           -> B.left_cycles = B.slice_cycles
- *                                           -> next sched timeout = now + A.left_cycles
- *       A           B           {B, A}      A run out slice, B continue to run with its left_cycles
- *                                           -> A.left_cycles = A.slice_cycles
- *                                           -> next sched timeout = now + B.left_cycles
- *       B           A            {A}        B removed from the queue, A continue to run with its left_cycles
- *                                           -> B is interrupted, B.left_cycles = ctx->timer.fire_tsc - now
- *                                           -> next sched timeout = now + A.left_cycles
- *       A          idle          { }        A removed from the queue, idle continue to run
- *                                           -> A is interrupted, A.left_cycles = ctx->timer.fire_tsc - now
- *                                           -> no next sched timeout for idle
- */
-static void update_sched_timer(struct sched_context *ctx, struct sched_object *prev, struct sched_object *next)
-{
-	uint16_t pcpu_id = get_cpu_id();
-	uint64_t now = rdtsc();
-
-	if (!is_idle(prev, pcpu_id)) {
-		if (timer_is_started(&ctx->timer)) {
-			del_timer(&ctx->timer);
-			if (ctx->timer.fire_tsc > now) {
-				prev->data.left_cycles = ctx->timer.fire_tsc - now;
-			} else {
-				prev->data.left_cycles = prev->data.slice_cycles;
-			}
-		} else {
-			prev->data.left_cycles = prev->data.slice_cycles;
-		}
-		TRACE_6C(TRACE_SCHED_OBJ, (uint8_t)prev->name[0], (uint8_t)prev->name[1], (uint8_t)prev->name[2],
-					(uint8_t)prev->name[6],(uint8_t)prev->name[7],(uint8_t)prev->name[8]);
-		TRACE_2L(TRACE_SCHED_SLICE_OUT, prev->data.left_cycles, prev->data.slice_cycles);
-	}
-
-	if (!is_idle(next, pcpu_id)) {
-		ctx->timer.fire_tsc = now + next->data.left_cycles;
-		(void)add_timer(&ctx->timer);
-		TRACE_6C(TRACE_SCHED_OBJ, (uint8_t)next->name[0], (uint8_t)next->name[1], (uint8_t)next->name[2],
-					(uint8_t)next->name[6],(uint8_t)next->name[7],(uint8_t)next->name[8]);
-		TRACE_2L(TRACE_SCHED_SLICE_IN, next->data.left_cycles, next->data.slice_cycles);
-	}
-}
-
-void init_scheduler(void)
+void init_scheduler(uint16_t pcpu_id)
 {
 	struct sched_context *ctx;
-	uint32_t i;
-	uint16_t pcpu_nums = get_pcpu_nums();
+	uint64_t tick_period = CONFIG_TASK_SLICE_MS * CYCLES_PER_MS / 2;
 
-	for (i = 0U; i < pcpu_nums; i++) {
-		ctx = &per_cpu(sched_ctx, i);
-
-		spinlock_init(&ctx->runqueue_lock);
-		spinlock_init(&ctx->scheduler_lock);
-		INIT_LIST_HEAD(&ctx->runqueue);
-		ctx->flags = 0UL;
-		ctx->curr_obj = NULL;
-		initialize_timer(&ctx->timer, sched_timer_callback, ctx, 0UL, 0, 0UL);
+	ctx = &per_cpu(sched_ctx, pcpu_id);
+	spinlock_init(&ctx->queue_lock);
+	spinlock_init(&ctx->scheduler_lock);
+	INIT_LIST_HEAD(&ctx->runqueue);
+	INIT_LIST_HEAD(&ctx->blocked_queue);
+	ctx->flags = 0UL;
+	ctx->curr_obj = NULL;
+	initialize_timer(&ctx->tick_timer, sched_tick_handler, ctx,
+			rdtsc() + tick_period, TICK_MODE_PERIODIC, tick_period);
+	if (add_timer(&ctx->tick_timer) < 0) {
+		pr_err("Failed to add schedule tick timer for pcpu%hu!", pcpu_id);
+	} else {
+		pr_info("add schedule tick timer for pcpu[%d] Done", pcpu_id);
 	}
 }
 
@@ -130,54 +97,84 @@ int32_t sched_pick_pcpu(struct sched_data *data, uint64_t cpus_bitmap, uint64_t 
 		return -1;
 	}
 	data->left_cycles = data->slice_cycles = CONFIG_TASK_SLICE_MS * CYCLES_PER_MS;
-	pr_info("%s: pcpu_id %d, cycles %lld\n", __func__, data->pcpu_id, data->slice_cycles);
 
 	return 0;
 }
 
-void add_to_cpu_runqueue(struct sched_object *obj, uint16_t pcpu_id)
+void add_to_cpu_runqueue(struct sched_object *obj)
 {
-	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+	struct sched_context *ctx = &per_cpu(sched_ctx, obj->data.pcpu_id);
 
-	spinlock_obtain(&ctx->runqueue_lock);
-	if (list_empty(&obj->run_list)) {
-		list_add(&obj->run_list, &ctx->runqueue);
+	spinlock_obtain(&ctx->queue_lock);
+	if (list_empty(&obj->list)) {
+		list_add(&obj->list, &ctx->runqueue);
 	}
-	spinlock_release(&ctx->runqueue_lock);
+	spinlock_release(&ctx->queue_lock);
 }
 
-void add_to_cpu_runqueue_tail(struct sched_object *obj, uint16_t pcpu_id)
+void add_to_cpu_runqueue_tail(struct sched_object *obj)
 {
-	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+	struct sched_context *ctx = &per_cpu(sched_ctx, obj->data.pcpu_id);
 
-	spinlock_obtain(&ctx->runqueue_lock);
-	if (list_empty(&obj->run_list)) {
-		list_add_tail(&obj->run_list, &ctx->runqueue);
+	spinlock_obtain(&ctx->queue_lock);
+	if (list_empty(&obj->list)) {
+		list_add_tail(&obj->list, &ctx->runqueue);
 	}
-	spinlock_release(&ctx->runqueue_lock);
+	spinlock_release(&ctx->queue_lock);
 }
 
-void remove_from_cpu_runqueue(struct sched_object *obj, uint16_t pcpu_id)
+void add_to_cpu_blocked_queue(struct sched_object *obj)
 {
-	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+	struct sched_context *ctx = &per_cpu(sched_ctx, obj->data.pcpu_id);
 
-	spinlock_obtain(&ctx->runqueue_lock);
-	list_del_init(&obj->run_list);
-	spinlock_release(&ctx->runqueue_lock);
+	spinlock_obtain(&ctx->queue_lock);
+	if (list_empty(&obj->list)) {
+		list_add(&obj->list, &ctx->blocked_queue);
+	}
+	spinlock_release(&ctx->queue_lock);
+}
+
+void remove_from_queue(struct sched_object *obj)
+{
+	struct sched_context *ctx = &per_cpu(sched_ctx, obj->data.pcpu_id);
+
+	spinlock_obtain(&ctx->queue_lock);
+	list_del_init(&obj->list);
+	spinlock_release(&ctx->queue_lock);
+}
+
+static bool is_active(struct sched_object *obj)
+{
+	return !list_empty(&obj->list);
 }
 
 static struct sched_object *get_next_sched_obj(struct sched_context *ctx)
 {
 	struct sched_object *obj = NULL;
+	struct sched_object *curr = NULL;
 
-	spinlock_obtain(&ctx->runqueue_lock);
+	curr = ctx->curr_obj;
+	if (!is_idle(curr) && is_active(curr)) {
+		remove_from_queue(curr);
+		if (curr->data.left_cycles > 0) {
+			add_to_cpu_runqueue_tail(curr);
+		} else {
+			add_to_cpu_blocked_queue(curr);
+		}
+	}
+
+	spinlock_obtain(&ctx->queue_lock);
 	if (!list_empty(&ctx->runqueue)) {
-		obj = get_first_item(&ctx->runqueue, struct sched_object, run_list);
-		list_move_tail(&obj->run_list, &ctx->runqueue);
+		obj = get_first_item(&ctx->runqueue, struct sched_object, list);
+	} else if (!list_empty(&ctx->blocked_queue)) {
+		obj = get_first_item(&ctx->blocked_queue, struct sched_object, list);
+		obj->data.left_cycles = obj->data.slice_cycles;
+		list_del_init(&obj->list);
+		list_add_tail(&obj->list, &ctx->runqueue);
 	} else {
 		obj = &get_cpu_var(idle);
 	}
-	spinlock_release(&ctx->runqueue_lock);
+	spinlock_release(&ctx->queue_lock);
 
 	return obj;
 }
@@ -235,7 +232,7 @@ struct sched_object *get_cur_sched_obj(uint16_t pcpu_id)
 	struct sched_object *obj = NULL;
 
 	get_schedule_lock(pcpu_id);
-	if (!is_idle(ctx->curr_obj, pcpu_id)) {
+	if (!is_idle(ctx->curr_obj)) {
 		obj = ctx->curr_obj;
 	}
 	release_schedule_lock(pcpu_id);
@@ -253,8 +250,13 @@ uint16_t pcpuid_from_sched_obj(const struct sched_object *obj)
 
 static void prepare_switch(struct sched_object *prev, struct sched_object *next)
 {
+	uint64_t now = rdtsc();
+
 	if ((prev != NULL) && (prev->switch_out != NULL)) {
 		prev->switch_out(prev);
+		if (!is_idle(prev)) {
+			prev->data.left_cycles -= now - prev->data.last_cycles;
+		}
 	}
 
 	/* update current object */
@@ -262,6 +264,9 @@ static void prepare_switch(struct sched_object *prev, struct sched_object *next)
 
 	if ((next != NULL) && (next->switch_in != NULL)) {
 		next->switch_in(next);
+		if (!is_idle(next)) {
+			next->data.last_cycles = now;
+		}
 	}
 }
 
@@ -276,15 +281,13 @@ void schedule(void)
 	next = get_next_sched_obj(ctx);
 	bitmap_clear_lock(NEED_RESCHEDULE, &ctx->flags);
 
-	if (prev == next) {
-		update_sched_timer(ctx, prev, next);
-		release_schedule_lock(pcpu_id);
-	} else {
+	if (prev != next) {
+		pr_dbg("%s: prev[%s] next[%s]", __func__, prev->name, next->name);
 		prepare_switch(prev, next);
-		update_sched_timer(ctx, prev, next);
 		release_schedule_lock(pcpu_id);
-
 		arch_switch_to(&prev->data.host_sp, &next->data.host_sp);
+	} else {
+		release_schedule_lock(pcpu_id);
 	}
 }
 
@@ -294,10 +297,24 @@ void yield(void)
 	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
 
 	get_schedule_lock(pcpu_id);
-	if (!is_idle(ctx->curr_obj, pcpu_id)) {
+	if (!is_idle(ctx->curr_obj)) {
 		TRACE_6C(TRACE_SCHED_YIELD, (uint8_t)ctx->curr_obj->name[0], (uint8_t)ctx->curr_obj->name[1],
 					(uint8_t)ctx->curr_obj->name[2], (uint8_t)ctx->curr_obj->name[6],
 					(uint8_t)ctx->curr_obj->name[7],(uint8_t)ctx->curr_obj->name[8]);
+		remove_from_queue(ctx->curr_obj);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+	}
+	release_schedule_lock(pcpu_id);
+}
+
+void wake(struct sched_object *obj)
+{
+	uint16_t pcpu_id = get_cpu_id();
+	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+
+	get_schedule_lock(pcpu_id);
+	if (is_idle(ctx->curr_obj)) {
+		add_to_cpu_runqueue_tail(obj);
 		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	}
 	release_schedule_lock(pcpu_id);
@@ -320,6 +337,9 @@ void switch_to_idle(run_thread_t idle_thread)
 
 	snprintf(idle_name, 16U, "idle%hu", pcpu_id);
 	(void)strncpy_s(idle->name, 16U, idle_name, 16U);
+	idle->data.pcpu_id = pcpu_id;
+	idle->data.left_cycles = 0;
+	idle->data.slice_cycles = 0;
 	idle->thread = idle_thread;
 	idle->switch_out = NULL;
 	idle->switch_in = NULL;
