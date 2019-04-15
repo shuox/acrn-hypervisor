@@ -160,6 +160,14 @@ struct acrn_vm {
 	uint64_t intr_inject_delay_delta; /* delay of intr injection */
 } __aligned(PAGE_SIZE);
 
+extern struct acrn_vm vm_array[CONFIG_MAX_VM_NUM];
+
+#define foreach_vm(idx, vm)	\
+	for ((idx) = 0U, (vm) = &vm_array[idx];		\
+		(idx) < CONFIG_MAX_VM_NUM;		\
+		(idx)++, (vm) = &vm_array[idx])		\
+		if (is_valid_vm(vm))
+
 /*
  * @pre vlapic != NULL
  */

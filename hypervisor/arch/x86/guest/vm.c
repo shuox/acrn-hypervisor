@@ -30,7 +30,7 @@ vm_sw_loader_t vm_sw_loader;
 
 /* Local variables */
 
-static struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
+struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
 
 static struct acrn_vm *sos_vm_ptr = NULL;
 
