@@ -32,6 +32,7 @@
 		.vm_vuart = true,	\
 		.pci_ptdev_num = VM##idx##_CONFIG_PCI_PTDEV_NUM,	\
 		.pci_ptdevs = vm##idx##_pci_ptdevs,	\
+		.scheduler = VM##idx##_CONFIG_SCHEDULER,	\
 	}
 
 static struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE) = {
@@ -46,6 +47,7 @@ static struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE) 
 		.GUID = {0xd2, 0x79, 0x54, 0x38, 0x25, 0xd6, 0x11, 0xe8, 0x86, 0x4e, 0xcb, 0x7a, 0x18, 0xb3, 0x46, 0x43},
 		.vcpu_num = 4,
 		.vcpu_sched_affinity = {1<<0, 1<<1, 1<<2, 1<<3,},
+		.scheduler = "sched_rr",
 	},
 
 #ifdef VM2_CONFIGURED

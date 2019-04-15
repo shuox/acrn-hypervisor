@@ -207,6 +207,7 @@ C_SRCS += common/hv_main.c
 C_SRCS += common/hypercall.c
 C_SRCS += common/trusty_hypercall.c
 C_SRCS += common/schedule.c
+C_SRCS += common/sched_rr.c
 C_SRCS += common/vm_load.c
 C_SRCS += common/io_req.c
 C_SRCS += common/ptdev.c

@@ -184,11 +184,11 @@ void vcpu_reset_eoi_exit_bitmaps(struct acrn_vcpu *vcpu)
 
 struct acrn_vcpu *get_running_vcpu(uint16_t pcpu_id)
 {
-	struct sched_object *obj = get_cur_sched_obj(pcpu_id);
+	struct sched_object *curr = sched_get_current(pcpu_id);
 	struct acrn_vcpu *vcpu = NULL;
 
-	if (obj != NULL) {
-		vcpu = list_entry(obj, struct acrn_vcpu, sched_obj);
+	if (curr != &per_cpu(idle, pcpu_id)) {
+		vcpu = list_entry(curr, struct acrn_vcpu, sched_obj);
 	}
 
 	return vcpu;
@@ -592,7 +592,7 @@ void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 	vcpu->prev_state = vcpu->state;
 	vcpu->state = new_state;
 
-	remove_from_queue(&vcpu->sched_obj);
+	sched_queue_remove(&vcpu->sched_obj);
 	if (atomic_load32(&vcpu->running) == 1U) {
 
 		if (is_lapic_pt(vcpu->vm)) {
@@ -622,7 +622,7 @@ void resume_vcpu(struct acrn_vcpu *vcpu)
 	vcpu->state = vcpu->prev_state;
 
 	if (vcpu->state == VCPU_RUNNING) {
-		add_to_cpu_runqueue(&vcpu->sched_obj);
+		sched_runqueue_add_head(&vcpu->sched_obj);
 		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	}
 	release_schedule_lock(pcpu_id);
@@ -674,7 +674,7 @@ void schedule_vcpu(struct acrn_vcpu *vcpu)
 	pr_info("vcpu%hu scheduled on pcpu%hu", vcpu->vcpu_id, pcpu_id);
 
 	get_schedule_lock(pcpu_id);
-	add_to_cpu_runqueue(&vcpu->sched_obj);
+	sched_runqueue_add_head(&vcpu->sched_obj);
 	make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	release_schedule_lock(pcpu_id);
 }
@@ -720,13 +720,15 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 		return ret;
 	}
 
+	conf = get_vm_config(vm->vm_id);
 	/* Update CLOS for this CPU */
 	if (cat_cap_info.enabled) {
-		conf = get_vm_config(vm->vm_id);
 		orig_val = msr_read(MSR_IA32_PQR_ASSOC);
 		final_val = (orig_val & 0xffffffffUL) | (((uint64_t)conf->clos) << 32UL);
 		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, pcpu_id);
 	}
+
+	set_scheduler(pcpu_id, find_scheduler_by_name(conf->scheduler));
 
 	INIT_LIST_HEAD(&vcpu->sched_obj.list);
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
@@ -736,7 +738,7 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 	vcpu->sched_obj.host_sp = build_stack_frame(vcpu);
 	vcpu->sched_obj.switch_out = context_switch_out;
 	vcpu->sched_obj.switch_in = context_switch_in;
-	sched_init_sched_data(&vcpu->sched_obj.data);
+	sched_init_data(&vcpu->sched_obj);
 
 	return ret;
 }
@@ -746,7 +748,7 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
  */
 uint16_t pcpuid_from_vcpu(const struct acrn_vcpu *vcpu)
 {
-	return pcpuid_from_sched_obj(&vcpu->sched_obj);
+	return sched_get_pcpuid(&vcpu->sched_obj);
 }
 
 uint64_t vcpumask2pcpumask(struct acrn_vm *vm, uint64_t vdmask)

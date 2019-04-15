@@ -23,6 +23,7 @@
 #define VM0_CONFIG_MEM_SIZE			CONFIG_SOS_RAM_SIZE
 #define VM0_CONFIG_OS_NAME			"ACRN Service OS"
 #define VM0_CONFIG_OS_BOOTARGS			"configured in devicemodel/samples/apl-mrb/sos_bootargs_xxxx.txt"
+#define VM0_CONFIG_SCHEDULER			"sched_rr"
 
 #define VM0_CONFIG_PCI_PTDEV_NUM		0U	/* PTDEV is reserved in SOS_VM */
 extern struct acrn_vm_pci_ptdev_config vm0_pci_ptdevs[VM0_CONFIG_PCI_PTDEV_NUM];

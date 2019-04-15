@@ -58,9 +58,10 @@ struct acrn_vm_config {
 	struct acrn_vm_os_config os_config;		/* OS information the VM */
 	uint16_t clos;					/* if guest_flags has GUEST_FLAG_CLOS_REQUIRED, then VM use this CLOS */
 
-	bool			vm_vuart;
-	uint16_t		vcpu_num;
-	uint64_t		vcpu_sched_affinity[CONFIG_MAX_VCPUS_PER_VM];
+	bool		vm_vuart;
+	uint16_t	vcpu_num;
+	uint64_t	vcpu_sched_affinity[CONFIG_MAX_VCPUS_PER_VM];
+	char 		scheduler[16];
 } __aligned(8);
 
 struct acrn_vm_config *get_vm_config(uint16_t vm_id);

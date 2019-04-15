@@ -223,7 +223,7 @@ void init_cpu_post(uint16_t pcpu_id)
 
 		ptdev_init();
 
-		init_scheduler(pcpu_id);
+		init_sched(pcpu_id);
 
 		/* Start all secondary cores */
 		startup_paddr = prepare_trampoline();
@@ -238,7 +238,7 @@ void init_cpu_post(uint16_t pcpu_id)
 
 		timer_init();
 
-		init_scheduler(pcpu_id);
+		init_sched(pcpu_id);
 		/* Wait for boot processor to signal all secondary cores to continue */
 		wait_sync_change(&pcpu_sync, 0UL);
 	}

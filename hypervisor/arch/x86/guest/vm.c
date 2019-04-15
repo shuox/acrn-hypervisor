@@ -659,7 +659,7 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 			if (vm_config->vcpu_sched_affinity[i] == 0) {
 				vm_config->vcpu_sched_affinity[i] = 1UL<<i;
 			}
-			pcpu = sched_pick_pcpu(vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
+			pcpu = sched_assign_pcpu(vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
 			if (pcpu < 0) {
 				break;
 			}

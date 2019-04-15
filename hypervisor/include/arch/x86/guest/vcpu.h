@@ -668,7 +668,7 @@ void schedule_vcpu(struct acrn_vcpu *vcpu);
  * Create a vcpu for the vm, and mapped to the pcpu.
  *
  * @param[inout] vm pointer to vm data structure
- * @param[in] task resource pointer to sched_data structure
+ * @param[in] the pcpu which vcpu run with 
  */
 int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id);
 

@@ -170,7 +170,7 @@ int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 			if (vm_config->vcpu_sched_affinity[i] == 0) {
 				vm_config->vcpu_sched_affinity[i] = 1UL << i;
 			}
-			pcpu_id = sched_pick_pcpu(vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
+			pcpu_id = sched_assign_pcpu(vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
 			if (pcpu_id < 0) {
 				pr_err("%s: No physical cpu avaiable", __func__);
 			} else {
