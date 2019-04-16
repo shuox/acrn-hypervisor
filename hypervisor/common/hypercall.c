@@ -119,11 +119,11 @@ int32_t hcall_get_api_version(struct acrn_vm *vm, uint64_t param)
 int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 {
 	uint16_t vm_id;
+	int16_t pcpu_id;
 	int32_t ret = -1, i;
 	struct acrn_vm *target_vm = NULL;
 	struct acrn_create_vm cv;
 	struct acrn_vm_config* vm_config = NULL;
-	struct sched_data data;
 
 	(void)memset((void *)&cv, 0U, sizeof(cv));
 	if (copy_from_gpa(vm, &cv, param, sizeof(cv)) == 0) {
@@ -170,11 +170,11 @@ int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 			if (vm_config->vcpu_sched_affinity[i] == 0) {
 				vm_config->vcpu_sched_affinity[i] = 1UL << i;
 			}
-			ret = sched_pick_pcpu(&data, vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
-			if (ret < 0) {
+			pcpu_id = sched_pick_pcpu(vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
+			if (pcpu_id < 0) {
 				pr_err("%s: No physical cpu avaiable", __func__);
 			} else {
-				ret = prepare_vcpu(target_vm, &data);
+				ret = prepare_vcpu(target_vm, pcpu_id);
 			}
 		}
 	} else {

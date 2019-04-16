@@ -670,7 +670,7 @@ void schedule_vcpu(struct acrn_vcpu *vcpu);
  * @param[inout] vm pointer to vm data structure
  * @param[in] task resource pointer to sched_data structure
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_data *data);
+int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id);
 
 /**
  * @brief get physical destination cpu mask

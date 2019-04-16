@@ -18,26 +18,26 @@
 #define TASK_ID_MONOPOLY	0xFFFEU
 
 struct sched_object;
-typedef void (*run_thread_t)(struct sched_object *obj);
+typedef void (*sched_thread)(struct sched_object *obj);
 typedef void (*switch_t)(struct sched_object *obj);
 
 struct sched_data {
-	uint16_t pcpu_id;
 	uint64_t slice_cycles;
 
 	uint64_t last_cycles;
 	int64_t left_cycles;
-
-	uint64_t host_sp;
 };
 
 struct sched_object {
 	char name[16];
+	uint16_t pcpu_id;
 	struct list_head list;
+	sched_thread thread;
 	struct sched_data data;
-	run_thread_t thread;
-	switch_t switch_out;
+
+	uint64_t host_sp;
 	switch_t switch_in;
+	switch_t switch_out;
 };
 
 struct sched_context {
@@ -51,11 +51,12 @@ struct sched_context {
 };
 
 void init_scheduler(uint16_t pcpu_id);
-void switch_to_idle(run_thread_t idle_thread);
+void switch_to_idle(sched_thread thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
 
-int32_t sched_pick_pcpu(struct sched_data *data, uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity);
+int16_t sched_pick_pcpu(uint64_t pcpu_bitmap, uint64_t vcpu_sched_affinity);
+void sched_init_sched_data(struct sched_data *data);
 
 void add_to_cpu_runqueue(struct sched_object *obj);
 void add_to_cpu_runqueue_tail(struct sched_object *obj);

@@ -18,6 +18,7 @@
 		.type = VM##idx##_CONFIG_TYPE,	\
 		.name = VM##idx##_CONFIG_NAME,	\
 		.pcpu_bitmap = VM##idx##_CONFIG_PCPU_BITMAP,	\
+		.vcpu_num = VM##idx##_CONFIG_VCPU_NUMBER,	\
 		.guest_flags = VM##idx##_CONFIG_FLAGS,	\
 		.clos = VM##idx##_CONFIG_CLOS,	\
 		.memory = {	\

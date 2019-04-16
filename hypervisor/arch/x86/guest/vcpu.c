@@ -707,7 +707,7 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
  *
  * help function for vcpu create
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_data *data)
+int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 {
 	int32_t ret = 0;
 	struct acrn_vcpu *vcpu = NULL;
@@ -725,17 +725,18 @@ int32_t prepare_vcpu(struct acrn_vm *vm, struct sched_data *data)
 		conf = get_vm_config(vm->vm_id);
 		orig_val = msr_read(MSR_IA32_PQR_ASSOC);
 		final_val = (orig_val & 0xffffffffUL) | (((uint64_t)conf->clos) << 32UL);
-		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, data->pcpu_id);
+		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, pcpu_id);
 	}
 
 	INIT_LIST_HEAD(&vcpu->sched_obj.list);
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
 	vcpu->sched_obj.thread = vcpu_thread;
-	(void)memcpy_s(&vcpu->sched_obj.data, sizeof(struct sched_data), data, sizeof(struct sched_data));
-	vcpu->sched_obj.data.host_sp = build_stack_frame(vcpu);
+	vcpu->sched_obj.pcpu_id = pcpu_id;
+	vcpu->sched_obj.host_sp = build_stack_frame(vcpu);
 	vcpu->sched_obj.switch_out = context_switch_out;
 	vcpu->sched_obj.switch_in = context_switch_in;
+	sched_init_sched_data(&vcpu->sched_obj.data);
 
 	return ret;
 }

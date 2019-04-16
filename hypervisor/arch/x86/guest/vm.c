@@ -645,8 +645,8 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 {
 	int32_t err = 0;
 	uint16_t i;
+	int16_t pcpu;
 	struct acrn_vm *vm = NULL;
-	struct sched_data data;
 
 	err = create_vm(vm_id, vm_config, &vm);
 
@@ -655,22 +655,19 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 		(void)mptable_build(vm);
 #endif
 
-		for (i = 0U; i < get_pcpu_nums(); i++) {
-			if (bitmap_test(i, &vm_config->pcpu_bitmap)) {
-				if (vm_config->vcpu_sched_affinity[i] == 0) {
-					vm_config->vcpu_sched_affinity[i] = 1UL<<i;
-				}
-				err = sched_pick_pcpu(&data, vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
-				if (err != 0) {
-					break;
-				}
-				err = prepare_vcpu(vm, &data);
-				if (err != 0) {
-					break;
-				}
+		for (i = 0U; i < vm_config->vcpu_num; i++) {
+			if (vm_config->vcpu_sched_affinity[i] == 0) {
+				vm_config->vcpu_sched_affinity[i] = 1UL<<i;
+			}
+			pcpu = sched_pick_pcpu(vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
+			if (pcpu < 0) {
+				break;
+			}
+			err = prepare_vcpu(vm, pcpu);
+			if (err != 0) {
+				break;
 			}
 		}
-
 	}
 
 	if (err == 0) {
