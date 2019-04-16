@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <trace.h>
 
-#define CONFIG_TASK_SLICE_MS 20UL
+#define CONFIG_TASK_SLICE_MS 5UL
 
 static inline bool is_idle(struct sched_object *obj)
 {
