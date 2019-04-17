@@ -17,6 +17,11 @@
 #define INVALID_TASK_ID		0xFFFFU
 #define TASK_ID_MONOPOLY	0xFFFEU
 
+#define SCHED_RUNNABLE		0U
+#define SCHED_RUNNING		1U
+#define SCHED_BLOCKED		2U
+#define SCHED_PAUSED		3U
+
 struct sched_object;
 typedef void (*sched_thread)(struct sched_object *obj);
 typedef void (*switch_t)(struct sched_object *obj);
@@ -34,6 +39,7 @@ struct sched_object {
 	struct list_head list;
 	sched_thread thread;
 	struct sched_data data;
+	uint8_t status;
 
 	uint64_t host_sp;
 	switch_t switch_in;
@@ -70,8 +76,10 @@ struct sched_object *get_cur_sched_obj(uint16_t pcpu_id);
 
 uint16_t pcpuid_from_sched_obj(const struct sched_object *obj);
 
+void sched_set_status(struct sched_object *obj, uint16_t status);
 void yield(void);
 void wake(struct sched_object *obj);
+void poke(struct sched_object *obj);
 void schedule(void);
 void run_sched_thread(struct sched_object *obj);
 

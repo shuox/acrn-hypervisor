@@ -126,23 +126,8 @@ static bool vcpu_pending_request(struct acrn_vcpu *vcpu)
 
 void vcpu_make_request(struct acrn_vcpu *vcpu, uint16_t eventid)
 {
-	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
-
 	bitmap_set_lock(eventid, &vcpu->arch.pending_req);
-	/*
-	 * if current hostcpu is not the target vcpu's hostcpu, we need
-	 * to invoke IPI to wake up target vcpu
-	 *
-	 * kick target CPU out of non-root mode, only when target CPU is not
-	 * current CPU and the running VCPU on target CPU is the target VCPU
-	 * we want to make request.
-	 *
-	 * TODO: we should finally do ipi only when target CPU is in non-root
-	 *  mode
-	 */
-	if ((get_cpu_id() != pcpu_id) && (get_running_vcpu(pcpu_id) == vcpu)) {
-		send_single_ipi(pcpu_id, VECTOR_NOTIFY_VCPU);
-	}
+	poke(&vcpu->sched_obj);
 }
 
 /*

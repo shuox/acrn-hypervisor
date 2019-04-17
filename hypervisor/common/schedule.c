@@ -23,6 +23,26 @@ static inline bool is_idle(struct sched_object *obj)
 	return (obj == &per_cpu(idle, pcpu_id));
 }
 
+static inline bool is_paused(struct sched_object *obj)
+{
+	return obj->status == SCHED_BLOCKED;
+}
+
+static inline bool is_runnable(struct sched_object *obj)
+{
+	return obj->status == SCHED_BLOCKED;
+}
+
+inline bool is_running(struct sched_object *obj)
+{
+	return obj->status == SCHED_RUNNING;
+}
+
+void sched_set_status(struct sched_object *obj, uint16_t status)
+{
+	obj->status = status;
+}
+
 void get_schedule_lock(uint16_t pcpu_id)
 {
 	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
@@ -118,6 +138,7 @@ void add_to_cpu_runqueue(struct sched_object *obj)
 	spinlock_obtain(&ctx->queue_lock);
 	if (list_empty(&obj->list)) {
 		list_add(&obj->list, &ctx->runqueue);
+		sched_set_status(obj, SCHED_RUNNABLE);
 	}
 	spinlock_release(&ctx->queue_lock);
 }
@@ -129,6 +150,7 @@ void add_to_cpu_runqueue_tail(struct sched_object *obj)
 	spinlock_obtain(&ctx->queue_lock);
 	if (list_empty(&obj->list)) {
 		list_add_tail(&obj->list, &ctx->runqueue);
+		sched_set_status(obj, SCHED_RUNNABLE);
 	}
 	spinlock_release(&ctx->queue_lock);
 }
@@ -140,6 +162,7 @@ void add_to_cpu_blocked_queue(struct sched_object *obj)
 	spinlock_obtain(&ctx->queue_lock);
 	if (list_empty(&obj->list)) {
 		list_add(&obj->list, &ctx->blocked_queue);
+		sched_set_status(obj, SCHED_BLOCKED);
 	}
 	spinlock_release(&ctx->queue_lock);
 }
@@ -149,7 +172,9 @@ void remove_from_queue(struct sched_object *obj)
 	struct sched_context *ctx = &per_cpu(sched_ctx, obj->pcpu_id);
 
 	spinlock_obtain(&ctx->queue_lock);
+	/* treat no queued object as paused, should wake it up when events arrive */
 	list_del_init(&obj->list);
+	sched_set_status(ctx->curr_obj, SCHED_PAUSED);
 	spinlock_release(&ctx->queue_lock);
 }
 
@@ -277,6 +302,7 @@ static void prepare_switch(struct sched_object *prev, struct sched_object *next)
 
 	/* update current object */
 	get_cpu_var(sched_ctx).curr_obj = next;
+	sched_set_status(next, SCHED_RUNNING);
 
 	if ((next != NULL) && (next->switch_in != NULL)) {
 		next->switch_in(next);
@@ -301,11 +327,12 @@ void schedule(void)
 	 * If we picked different sched object, switch them; else, leave as it is
 	 */
 	if (prev != next) {
-		pr_dbg("%s: prev[%s] next[%s]", __func__, prev->name, next->name);
+		pr_info("%s: prev[%s] next[%s][%x]", __func__, prev->name, next->name, next->host_sp);
 		prepare_switch(prev, next);
 		release_schedule_lock(pcpu_id);
 		arch_switch_to(&prev->host_sp, &next->host_sp);
 	} else {
+		pr_info("%s: curr[%s] continue run", __func__, next->name);
 		release_schedule_lock(pcpu_id);
 	}
 }
@@ -328,12 +355,29 @@ void yield(void)
 
 void wake(struct sched_object *obj)
 {
-	uint16_t pcpu_id = get_cpu_id();
-	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+	uint16_t pcpu_id = obj->pcpu_id;
 
 	get_schedule_lock(pcpu_id);
-	if (is_idle(ctx->curr_obj)) {
-		add_to_cpu_runqueue_tail(obj);
+	if (is_paused(obj)) {
+		add_to_cpu_runqueue(obj);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+	}
+	release_schedule_lock(pcpu_id);
+}
+
+void poke(struct sched_object *obj)
+{
+	uint16_t pcpu_id = obj->pcpu_id;
+
+	get_schedule_lock(pcpu_id);
+	if (is_running(obj)) {
+		send_single_ipi(pcpu_id, VECTOR_NOTIFY_VCPU);
+	} else if (is_runnable(obj)) {
+		remove_from_queue(obj);
+		add_to_cpu_runqueue(obj);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+	} else if (is_paused(obj)) {
+		add_to_cpu_runqueue(obj);
 		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	}
 	release_schedule_lock(pcpu_id);
@@ -363,6 +407,7 @@ void switch_to_idle(sched_thread idle_thread)
 	idle->switch_out = NULL;
 	idle->switch_in = NULL;
 	get_cpu_var(sched_ctx).curr_obj = idle;
+	sched_set_status(idle, SCHED_RUNNING);
 
 	run_sched_thread(idle);
 }
