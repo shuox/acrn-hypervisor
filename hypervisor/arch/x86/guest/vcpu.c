@@ -728,8 +728,6 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, pcpu_id);
 	}
 
-	set_scheduler(pcpu_id, find_scheduler_by_name(conf->scheduler));
-
 	INIT_LIST_HEAD(&vcpu->sched_obj.list);
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);

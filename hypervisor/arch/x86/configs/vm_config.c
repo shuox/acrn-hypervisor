@@ -11,6 +11,8 @@
 #include <page.h>
 #include <logmsg.h>
 #include <cat.h>
+#include <bits.h>
+#include <per_cpu.h>
 #include <vm_configurations.h>
 
 #define INIT_VM_CONFIG(idx)	\
@@ -86,6 +88,36 @@ struct acrn_vm_config *get_vm_config_by_uuid(uint8_t *guid, uint16_t *vm_id)
 	return NULL;
 }
 
+static int32_t init_pcpu_schedulers(struct acrn_vm_config *vm_config)
+{
+	int32_t ret = 0;
+	uint16_t pcpu_id;
+	struct acrn_scheduler *scheduler;
+	uint64_t pcpu_bitmap = vm_config->pcpu_bitmap;
+
+	/* verify & set scheduler for all pcpu of this VM */
+	pcpu_id = ffs64(pcpu_bitmap);
+	while (pcpu_id != INVALID_BIT_INDEX) {
+		scheduler = get_scheduler(pcpu_id);
+		if (scheduler && scheduler != find_scheduler_by_name(vm_config->scheduler)) {
+			pr_err("%s: detect scheduler conflict on pcpu%d\n", __func__, pcpu_id);
+			ret = -EINVAL;
+			break;
+		}
+		scheduler = find_scheduler_by_name(vm_config->scheduler);
+		if (!scheduler) {
+			pr_err("%s: No valid scheduler found for pcpu%d\n", __func__, pcpu_id);
+			ret = -EINVAL;
+			break;
+		}
+		set_scheduler(pcpu_id, scheduler);
+		bitmap_clear_nolock(pcpu_id, &pcpu_bitmap);
+		pcpu_id = ffs64(pcpu_bitmap);
+	}
+
+	return ret;
+}
+
 /**
  * @pre vm_config != NULL
  */
@@ -134,6 +166,8 @@ int32_t sanitize_vm_config(void)
 			/* Nothing to do for a UNDEFINED_VM, break directly. */
 			break;
 		}
+
+		init_pcpu_schedulers(vm_config);
 
 		if ((vm_config->guest_flags & GUEST_FLAG_CLOS_REQUIRED) != 0U) {
 			if (cat_cap_info.support && (vm_config->clos <= cat_cap_info.clos_max)) {

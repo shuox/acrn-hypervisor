@@ -48,12 +48,20 @@ struct sched_context {
 	struct list_head runqueue;
 	struct list_head retired_queue;
 	uint64_t flags;
-	bool inited;
 	struct sched_object *current;
 	struct hv_timer tick_timer;
-
-	struct acrn_scheduler *scheduler;
 };
+
+struct acrn_scheduler {
+	char name[16];
+
+	int	 (*init)(struct sched_context *ctx);
+	void 	 (*init_data)(struct sched_object *obj);
+	uint16_t (*assign_pcpu)(uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity);
+	void	 (*prepare_switch)(struct sched_object *prev, struct sched_object *next);
+	struct sched_object* (*pick_next)(struct sched_context *ctx);
+};
+extern struct acrn_scheduler sched_rr;
 
 void init_sched(uint16_t pcpu_id);
 void switch_to_idle(sched_thread thread);
@@ -61,6 +69,7 @@ void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
 
 void set_scheduler(uint16_t pcpu_id, struct acrn_scheduler *scheduler);
+struct acrn_scheduler *get_scheduler(uint16_t pcpu_id);
 struct acrn_scheduler *find_scheduler_by_name(const char *name);
 uint16_t sched_assign_pcpu(uint64_t pcpu_bitmap, uint64_t vcpu_sched_affinity);
 void sched_init_data(struct sched_object *obj);
@@ -87,17 +96,6 @@ void schedule(void);
 void run_sched_thread(struct sched_object *obj);
 
 void arch_switch_to(void *prev_sp, void *next_sp);
-
-struct acrn_scheduler {
-	char name[16];
-
-	int	 (*init)(struct sched_context *ctx);
-	void 	 (*init_data)(struct sched_object *obj);
-	uint16_t (*assign_pcpu)(uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity);
-	void	 (*prepare_switch)(struct sched_object *prev, struct sched_object *next);
-	struct sched_object* (*pick_next)(struct sched_context *ctx);
-};
-extern struct acrn_scheduler sched_rr;
 
 #endif /* SCHEDULE_H */
 

@@ -65,22 +65,12 @@ void release_schedule_lock(uint16_t pcpu_id)
 
 void set_scheduler(uint16_t pcpu_id, struct acrn_scheduler *scheduler)
 {
-	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
-
-	get_schedule_lock(pcpu_id);
-	ctx->scheduler = scheduler;
-	release_schedule_lock(pcpu_id);
+	per_cpu(scheduler, pcpu_id) = scheduler;
 }
 
 struct acrn_scheduler *get_scheduler(uint16_t pcpu_id)
 {
-	struct acrn_scheduler *scheduler;
-	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
-
-	get_schedule_lock(pcpu_id);
-	scheduler = ctx->scheduler;
-	release_schedule_lock(pcpu_id);
-	return scheduler;
+	return per_cpu(scheduler, pcpu_id);
 }
 
 struct acrn_scheduler *find_scheduler_by_name(const char *name)
@@ -88,9 +78,10 @@ struct acrn_scheduler *find_scheduler_by_name(const char *name)
 	int i;
 	struct acrn_scheduler *scheduler = NULL;
 
-	for (i = 0; i < SCHEDULER_MAX_NUMBER; i++) {
-		if (!strncmp(name, schedulers[i]->name, sizeof(schedulers[i]->name))) {
+	for (i = 0; i < SCHEDULER_MAX_NUMBER && schedulers[i] != 0; i++) {
+		if (strncmp(name, schedulers[i]->name, sizeof(schedulers[i]->name)) == 0) {
 			scheduler = schedulers[i];
+			break;
 		}
 	}
 	return scheduler;
@@ -99,6 +90,7 @@ struct acrn_scheduler *find_scheduler_by_name(const char *name)
 void init_sched(uint16_t pcpu_id)
 {
 	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+	struct acrn_scheduler *scheduler = get_scheduler(pcpu_id);
 
 	spinlock_init(&ctx->queue_lock);
 	spinlock_init(&ctx->scheduler_lock);
@@ -106,24 +98,13 @@ void init_sched(uint16_t pcpu_id)
 	INIT_LIST_HEAD(&ctx->retired_queue);
 	ctx->flags = 0UL;
 	ctx->current = NULL;
+
+	scheduler->init(ctx);
 }
 
 void sched_init_data(struct sched_object *obj)
 {
 	struct acrn_scheduler *scheduler = get_scheduler(obj->pcpu_id);
-	struct sched_context *ctx = &per_cpu(sched_ctx, obj->pcpu_id);
-
-	/*
-	 * Put scheduler's init here as we cannot do init in pcpu UP stage,
-	 * because we cannot get scheduler configure at that time
-	 */
-	get_schedule_lock(obj->pcpu_id);
-	if (!ctx->inited) {
-		scheduler->init(ctx);
-		ctx->inited = true;
-	}
-	release_schedule_lock(obj->pcpu_id);
-
 	scheduler->init_data(obj);
 }
 

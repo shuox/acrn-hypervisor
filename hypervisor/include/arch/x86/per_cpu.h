@@ -36,6 +36,7 @@ struct per_cpu_region {
 	struct stack_canary stk_canary;
 #endif
 	struct per_cpu_timers cpu_timers;
+	struct acrn_scheduler *scheduler;
 	struct sched_context sched_ctx;
 	struct sched_object idle;
 	struct host_gdt gdt;
