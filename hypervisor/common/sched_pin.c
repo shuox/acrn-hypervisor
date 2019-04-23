@@ -15,64 +15,52 @@
 #include <errno.h>
 #include <trace.h>
 
-int sched_pin_init(void)
+void sched_pin_init_data(__unused struct sched_object *obj)
 {
-	pr_fatal("%s\n", __func__);
+}
+
+uint16_t sched_pin_assign_pcpu(uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity)
+{
+	uint16_t pcpu;
+
+	pcpu = ffs64(cpus_bitmap & vcpu_sched_affinity);
+	if (pcpu == INVALID_BIT_INDEX) {
+		return -1;
+	}
+
+	return pcpu;
+}
+
+int sched_pin_init(__unused struct sched_context *ctx)
+{
 	return 0;
 }
 
-int sched_pin_insert(struct sched_object *obj)
+static struct sched_object *sched_pin_pick_next(struct sched_context *ctx)
 {
-	pr_fatal("%s: obj->name = %s\n", __func__, obj->name);
-	return 0;
+	struct sched_object *obj = NULL;
+
+	/* pinned sched_object, if runqueue is null, then return idle */
+	spinlock_obtain(&ctx->queue_lock);
+	if (!list_empty(&ctx->runqueue)) {
+		obj = get_first_item(&ctx->runqueue, struct sched_object, list);
+	} else {
+		obj = &get_cpu_var(idle);
+	}
+	spinlock_release(&ctx->queue_lock);
+	return obj;
 }
 
-int sched_pin_remove(struct sched_object *obj)
+static void sched_pin_prepare_switch(__unused struct sched_object *prev, __unused struct sched_object *next)
 {
-	pr_fatal("%s: obj->name = %s\n", __func__, obj->name);
-	return 0;
-}
-
-uint32_t sched_pin_pick(struct sched_object *obj)
-{
-	pr_fatal("%s: obj->name = %s\n", __func__, obj->name);
-	return 0;
-}
-
-int sched_pin_schedule(void)
-{
-	pr_fatal("%s\n", __func__);
-	return 0;
-}
-
-int sched_pin_sleep(struct sched_object *obj)
-{
-	pr_fatal("%s: obj->name = %s\n", __func__, obj->name);
-	return 0;
-}
-
-int sched_pin_wakeup(struct sched_object *obj)
-{
-	pr_fatal("%s: obj->name = %s\n", __func__, obj->name);
-	return 0;
-}
-
-int sched_pin_yield(void)
-{
-	pr_fatal("%s\n", __func__);
-	return 0;
+	/* do nothing */
 }
 
 struct acrn_scheduler sched_pin = {
-	.name					=	"PIN scheduler",
-	.need_timer				=	false,
-	.init					=	sched_pin_init,
-	.insert_sched_obj		=	sched_pin_insert,
-	.remove_sched_obj		=	sched_pin_remove,
-	.pick_next_sched_obj	=	sched_pin_pick,
-	.schedule				=	sched_pin_schedule,
-	.sleep					=	sched_pin_sleep,
-	.wakeup					=	sched_pin_wakeup,
-	.yield					=	sched_pin_yield,
+	.name		= "sched_pin",
+	.init		= sched_pin_init,
+	.init_data	= sched_pin_init_data,
+	.assign_pcpu	= sched_pin_assign_pcpu,
+	.pick_next	= sched_pin_pick_next,
+	.prepare_switch = sched_pin_prepare_switch
 };
-

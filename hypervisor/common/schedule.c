@@ -17,6 +17,7 @@
 
 #define SCHEDULER_MAX_NUMBER	4
 static struct acrn_scheduler *schedulers[SCHEDULER_MAX_NUMBER] = {
+	&sched_pin,
 	&sched_rr,
 };
 

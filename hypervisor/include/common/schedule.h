@@ -62,6 +62,7 @@ struct acrn_scheduler {
 	struct sched_object* (*pick_next)(struct sched_context *ctx);
 };
 extern struct acrn_scheduler sched_rr;
+extern struct acrn_scheduler sched_pin;
 
 void init_sched(uint16_t pcpu_id);
 void switch_to_idle(sched_thread thread);
