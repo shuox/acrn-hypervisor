@@ -38,22 +38,17 @@ int sched_pin_init(__unused struct sched_context *ctx)
 
 static struct sched_object *sched_pin_pick_next(struct sched_context *ctx)
 {
-	struct sched_object *obj = NULL;
+	struct sched_object *next = NULL;
 
 	/* pinned sched_object, if runqueue is null, then return idle */
 	spinlock_obtain(&ctx->queue_lock);
 	if (!list_empty(&ctx->runqueue)) {
-		obj = get_first_item(&ctx->runqueue, struct sched_object, list);
+		next = get_first_item(&ctx->runqueue, struct sched_object, list);
 	} else {
-		obj = &get_cpu_var(idle);
+		next = &get_cpu_var(idle);
 	}
 	spinlock_release(&ctx->queue_lock);
-	return obj;
-}
-
-static void sched_pin_prepare_switch(__unused struct sched_object *prev, __unused struct sched_object *next)
-{
-	/* do nothing */
+	return next ;
 }
 
 struct acrn_scheduler sched_pin = {
@@ -62,5 +57,4 @@ struct acrn_scheduler sched_pin = {
 	.init_data	= sched_pin_init_data,
 	.assign_pcpu	= sched_pin_assign_pcpu,
 	.pick_next	= sched_pin_pick_next,
-	.prepare_switch = sched_pin_prepare_switch
 };

@@ -236,8 +236,7 @@ uint16_t sched_get_pcpuid(const struct sched_object *obj)
 	return obj->pcpu_id;
 }
 
-static void sched_prepare_switch(struct acrn_scheduler *scheduler,
-		struct sched_object *prev, struct sched_object *next)
+static void sched_prepare_switch(struct sched_object *prev, struct sched_object *next)
 {
 	if ((prev != NULL) && (prev->switch_out != NULL)) {
 		prev->switch_out(prev);
@@ -250,7 +249,6 @@ static void sched_prepare_switch(struct acrn_scheduler *scheduler,
 	if ((next != NULL) && (next->switch_in != NULL)) {
 		next->switch_in(next);
 	}
-	scheduler->prepare_switch(prev, next);
 }
 
 void schedule(void)
@@ -262,19 +260,16 @@ void schedule(void)
 	struct sched_object *prev = ctx->current;
 
 	get_schedule_lock(pcpu_id);
-	next = scheduler->pick_next(ctx);
 	bitmap_clear_lock(NEED_RESCHEDULE, &ctx->flags);
-
+	next = scheduler->pick_next(ctx);
+	release_schedule_lock(pcpu_id);
 	/*
-	 * If we picked different sched object, switch them; else, leave as it is
+	 * If we picked different sched object, switch them; else leave as it is
 	 */
 	if (prev != next) {
+		sched_prepare_switch(prev, next);
 		pr_info("%s: prev[%s] next[%s][%x]", __func__, prev->name, next->name, next->host_sp);
-		sched_prepare_switch(scheduler, prev, next);
-		release_schedule_lock(pcpu_id);
 		arch_switch_to(&prev->host_sp, &next->host_sp);
-	} else {
-		release_schedule_lock(pcpu_id);
 	}
 }
 

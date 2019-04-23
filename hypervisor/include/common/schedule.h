@@ -58,7 +58,6 @@ struct acrn_scheduler {
 	int	 (*init)(struct sched_context *ctx);
 	void 	 (*init_data)(struct sched_object *obj);
 	uint16_t (*assign_pcpu)(uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity);
-	void	 (*prepare_switch)(struct sched_object *prev, struct sched_object *next);
 	struct sched_object* (*pick_next)(struct sched_context *ctx);
 };
 extern struct acrn_scheduler sched_rr;
