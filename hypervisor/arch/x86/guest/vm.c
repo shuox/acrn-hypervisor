@@ -30,7 +30,7 @@ vm_sw_loader_t vm_sw_loader;
 
 /* Local variables */
 
-static struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
+struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
 
 static struct acrn_vm *sos_vm_ptr = NULL;
 
@@ -471,8 +471,8 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 			offline_vcpu(vcpu);
 
 			if (is_lapic_pt(vm)) {
-				bitmap_set_nolock(vcpu->pcpu_id, &mask);
-				make_pcpu_offline(vcpu->pcpu_id);
+				bitmap_set_nolock(pcpuid_from_vcpu(vcpu), &mask);
+				make_pcpu_offline(pcpuid_from_vcpu(vcpu));
 			}
 		}
 
@@ -634,6 +634,7 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 {
 	int32_t err = 0;
 	uint16_t i;
+	int16_t pcpu;
 	struct acrn_vm *vm = NULL;
 
 	err = create_vm(vm_id, vm_config, &vm);
@@ -643,15 +644,19 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 			(void)mptable_build(vm);
 		}
 
-		for (i = 0U; i < get_pcpu_nums(); i++) {
-			if (bitmap_test(i, &vm_config->pcpu_bitmap)) {
-				err = prepare_vcpu(vm, i);
-				if (err != 0) {
-					break;
-				}
+		for (i = 0U; i < vm_config->cpu_num; i++) {
+			if (vm_config->vcpu_sched_affinity[i] == 0) {
+				vm_config->vcpu_sched_affinity[i] = 1UL<<i;
+			}
+			pcpu = sched_pick_pcpu(vm_config->pcpu_bitmap, vm_config->vcpu_sched_affinity[i]);
+			if (pcpu < 0) {
+				break;
+			}
+			err = prepare_vcpu(vm, pcpu);
+			if (err != 0) {
+				break;
 			}
 		}
-
 	}
 
 	if (err == 0) {

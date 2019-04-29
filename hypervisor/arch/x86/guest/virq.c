@@ -107,18 +107,7 @@ static bool is_guest_irq_enabled(struct acrn_vcpu *vcpu)
 void vcpu_make_request(struct acrn_vcpu *vcpu, uint16_t eventid)
 {
 	bitmap_set_lock(eventid, &vcpu->arch.pending_req);
-	/*
-	 * if current hostcpu is not the target vcpu's hostcpu, we need
-	 * to invoke IPI to wake up target vcpu
-	 *
-	 * TODO: Here we just compare with cpuid, since cpuid currently is
-	 *  global under pCPU / vCPU 1:1 mapping. If later we enabled vcpu
-	 *  scheduling, we need change here to determine it target vcpu is
-	 *  VMX non-root or root mode
-	 */
-	if (get_pcpu_id() != vcpu->pcpu_id) {
-		send_single_ipi(vcpu->pcpu_id, VECTOR_NOTIFY_VCPU);
-	}
+	poke(&vcpu->sched_obj);
 }
 
 /*
@@ -200,10 +189,12 @@ int32_t vcpu_queue_exception(struct acrn_vcpu *vcpu, uint32_t vector_arg, uint32
 				/* generate double fault */
 				vector = IDT_DF;
 				err_code = 0U;
+				pr_err("%s: double fault prev 0x%x curr 0x%x", __func__, prev_vector, vector);
 			} else {
 				/* Trigger the given exception instead of override it with
 				 * double/triple fault. */
 			}
+			pr_err("%s: queue exception vector 0x%x", __func__, vector);
 
 			arch->exception_info.exception = vector;
 

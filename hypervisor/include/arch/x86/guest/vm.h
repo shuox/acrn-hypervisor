@@ -154,6 +154,14 @@ struct acrn_vm {
 	uint64_t intr_inject_delay_delta; /* delay of intr injection */
 } __aligned(PAGE_SIZE);
 
+extern struct acrn_vm vm_array[CONFIG_MAX_VM_NUM];
+
+#define foreach_vm(idx, vm)	\
+	for ((idx) = 0U, (vm) = &vm_array[idx];		\
+		(idx) < CONFIG_MAX_VM_NUM;		\
+		(idx)++, (vm) = &vm_array[idx])		\
+		if (is_valid_vm(vm))
+
 /*
  * @pre vlapic != NULL
  */
@@ -185,7 +193,7 @@ static inline struct acrn_vcpu *vcpu_from_pid(struct acrn_vm *vm, uint16_t pcpu_
 	struct acrn_vcpu *vcpu, *target_vcpu = NULL;
 
 	foreach_vcpu(i, vm, vcpu) {
-		if (vcpu->pcpu_id == pcpu_id) {
+		if (pcpuid_from_vcpu(vcpu) == pcpu_id) {
 			target_vcpu = vcpu;
 			break;
 		}
