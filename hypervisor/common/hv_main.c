@@ -43,7 +43,7 @@ void vcpu_thread(struct sched_object *obj)
 			continue;
 		}
 
-		if (need_reschedule(vcpu->pcpu_id)) {
+		if (need_reschedule(pcpuid_from_vcpu(vcpu))) {
 			schedule();
 			continue;
 		}
@@ -93,6 +93,7 @@ void default_idle(__unused struct sched_object *obj)
 			shutdown_vm_from_idle(pcpu_id);
 		} else {
 			CPU_IRQ_ENABLE();
+			do_softirq();
 			cpu_do_idle();
 			CPU_IRQ_DISABLE();
 		}

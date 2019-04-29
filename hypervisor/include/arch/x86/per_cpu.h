@@ -31,7 +31,6 @@ struct per_cpu_region {
 	uint64_t irq_count[NR_IRQS];
 	uint64_t softirq_pending;
 	uint64_t spurious;
-	void *vcpu;
 	void *ever_run_vcpu;
 #ifdef STACK_PROTECTOR
 	struct stack_canary stk_canary;
@@ -39,9 +38,12 @@ struct per_cpu_region {
 	struct per_cpu_timers cpu_timers;
 	struct sched_context sched_ctx;
 	struct sched_object idle;
+	struct sched_rr_context sched_rr_ctx;
+	struct sched_mono_context sched_mono_ctx;
 	struct host_gdt gdt;
 	struct tss_64 tss;
 	enum pcpu_boot_state boot_state;
+	uint64_t pcpu_flag;
 	uint8_t mc_stack[CONFIG_STACK_SIZE] __aligned(16);
 	uint8_t df_stack[CONFIG_STACK_SIZE] __aligned(16);
 	uint8_t sf_stack[CONFIG_STACK_SIZE] __aligned(16);

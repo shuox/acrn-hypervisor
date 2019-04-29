@@ -292,12 +292,6 @@ add_cpu(struct vmctx *ctx, int guest_ncpus)
 	int error;
 
 	for (i = 0; i < guest_ncpus; i++) {
-		error = vm_create_vcpu(ctx, (uint16_t)i);
-		if (error != 0) {
-			fprintf(stderr, "ERROR: could not create VCPU %d\n", i);
-			return error;
-		}
-
 		CPU_SET_ATOMIC(i, &cpumask);
 
 		mt_vmm_info[i].mt_ctx = ctx;
@@ -970,7 +964,7 @@ dm_run(int argc, char *argv[])
 
 	for (;;) {
 		pr_notice("vm_create: %s\n", vmname);
-		ctx = vm_create(vmname, (unsigned long)vhm_req_buf);
+		ctx = vm_create(vmname, (unsigned long)vhm_req_buf, &guest_ncpus);
 		if (!ctx) {
 			pr_err("vm_create failed");
 			exit(1);

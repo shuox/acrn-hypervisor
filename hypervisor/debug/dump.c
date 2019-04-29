@@ -66,12 +66,14 @@ struct intr_excp_ctx *crash_ctx;
 
 static void dump_guest_reg(struct acrn_vcpu *vcpu)
 {
+	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
+
 	pr_acrnlog("\n\n================================================");
 	pr_acrnlog("================================\n\n");
 	pr_acrnlog("Guest Registers:\r\n");
 	pr_acrnlog("=	VM ID %d ==== vCPU ID %hu ===  pCPU ID %d ===="
 			"world %d =============\r\n",
-			vcpu->vm->vm_id, vcpu->vcpu_id, vcpu->pcpu_id,
+			vcpu->vm->vm_id, vcpu->vcpu_id, pcpu_id,
 			vcpu->arch.cur_context);
 	pr_acrnlog("=	RIP=0x%016llx  RSP=0x%016llx "
 			"RFLAGS=0x%016llx\r\n",
@@ -180,9 +182,8 @@ static void show_guest_call_trace(struct acrn_vcpu *vcpu)
 
 static void dump_guest_context(uint16_t pcpu_id)
 {
-	struct acrn_vcpu *vcpu;
+	struct acrn_vcpu *vcpu = get_running_vcpu(pcpu_id);
 
-	vcpu = per_cpu(vcpu, pcpu_id);
 	if (vcpu != NULL) {
 		dump_guest_reg(vcpu);
 		dump_guest_stack(vcpu);

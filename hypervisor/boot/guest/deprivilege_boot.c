@@ -66,7 +66,8 @@ static void* get_depri_boot_rsdp(void)
 static void depri_boot_spurious_handler(uint32_t vector)
 {
 	if (get_pcpu_id() == BOOT_CPU_ID) {
-		struct acrn_vcpu *vcpu = per_cpu(vcpu, BOOT_CPU_ID);
+		/* TODO: might lost interrupt if current running vcpu is NULL */
+		struct acrn_vcpu *vcpu = get_running_vcpu(BOOT_CPU_ID);
 
 		if (vcpu != NULL) {
 			vlapic_set_intr(vcpu, vector, LAPIC_TRIG_EDGE);

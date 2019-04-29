@@ -16,6 +16,7 @@
 #include <ioapic.h>
 #include <ptdev.h>
 #include <vm.h>
+#include <schedule.h>
 #include <sprintf.h>
 #include <logmsg.h>
 
@@ -35,6 +36,7 @@ static int32_t shell_cmd_help(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vm(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv);
 static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv);
+static int32_t shell_sched_dump(int32_t argc, char **argv);
 static int32_t shell_dumpmem(int32_t argc, char **argv);
 static int32_t shell_to_vm_console(int32_t argc, char **argv);
 static int32_t shell_show_cpu_int(__unused int32_t argc, __unused char **argv);
@@ -71,6 +73,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_VCPU_DUMPREG_PARAM,
 		.help_str	= SHELL_CMD_VCPU_DUMPREG_HELP,
 		.fcn		= shell_vcpu_dumpreg,
+	},
+	{
+		.str		= SHELL_CMD_SCHED_DUMP,
+		.cmd_param	= SHELL_CMD_SCHED_DUMP_PARAM,
+		.help_str	= SHELL_CMD_SCHED_DUMP_HELP,
+		.fcn		= shell_sched_dump,
 	},
 	{
 		.str		= SHELL_CMD_DUMPMEM,
@@ -640,7 +648,7 @@ static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv)
 			snprintf(temp_str, MAX_STR_SIZE,
 					"  %-9d %-10d %-7hu %-12s %-16s\r\n",
 					vm->vm_id,
-					vcpu->pcpu_id,
+					pcpuid_from_vcpu(vcpu),
 					vcpu->vcpu_id,
 					is_vcpu_bsp(vcpu) ?
 					"PRIMARY" : "SECONDARY",
@@ -743,7 +751,7 @@ static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv)
 {
 	int32_t status = 0;
 	uint16_t vm_id;
-	uint16_t vcpu_id;
+	uint16_t vcpu_id, pcpu_id;
 	struct acrn_vm *vm;
 	struct acrn_vcpu *vcpu;
 	uint64_t mask = 0UL;
@@ -783,17 +791,56 @@ static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv)
 		goto out;
 	}
 
+	pcpu_id = pcpuid_from_vcpu(vcpu);
 	dump.vcpu = vcpu;
 	dump.str = shell_log_buf;
 	dump.str_max = SHELL_LOG_BUF_SIZE;
-	if (vcpu->pcpu_id == get_pcpu_id()) {
+	if (pcpu_id == get_pcpu_id()) {
 		vcpu_dumpreg(&dump);
 	} else {
-		bitmap_set_nolock(vcpu->pcpu_id, &mask);
+		bitmap_set_nolock(pcpu_id, &mask);
 		smp_call_function(mask, vcpu_dumpreg, &dump);
 	}
 	shell_puts(shell_log_buf);
 	status = 0;
+
+out:
+	return status;
+}
+
+uint64_t sched_switch_start[4];
+uint64_t sched_switch_total[4];
+uint64_t sched_switch_count[4];
+void dump_sched(uint16_t pcpu_id)
+{
+	struct acrn_scheduler *scheduler = get_scheduler(pcpu_id);
+	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+
+	pr_acrnlog("Dump scheduling statistics for pcpu%u", pcpu_id);
+	pr_acrnlog("Total schedule count: %lld  total_cycles[%lld]",
+			sched_switch_count[pcpu_id], sched_switch_total[pcpu_id]);
+	scheduler->dump(ctx);
+}
+
+static int32_t shell_sched_dump(int32_t argc, char **argv)
+{
+	uint16_t pcpu_id;
+	int32_t status = 0;
+
+	if (argc != 2) {
+		shell_puts("Please enter cmd with <pcpu_id>\r\n");
+		status = -EINVAL;
+		goto out;
+	}
+	pcpu_id = (uint16_t)strtol_deci(argv[1]);
+
+	if (pcpu_id >= get_pcpu_nums()) {
+		shell_puts("pcpu id is out of range\r\n");
+		status = -EINVAL;
+		goto out;
+	}
+
+	dump_sched(pcpu_id);
 
 out:
 	return status;

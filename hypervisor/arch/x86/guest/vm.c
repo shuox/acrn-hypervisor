@@ -29,7 +29,7 @@ vm_sw_loader_t vm_sw_loader;
 
 /* Local variables */
 
-static struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
+struct acrn_vm vm_array[CONFIG_MAX_VM_NUM] __aligned(PAGE_SIZE);
 
 static struct acrn_vm *sos_vm_ptr = NULL;
 
@@ -482,8 +482,8 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 			offline_vcpu(vcpu);
 
 			if (is_lapic_pt(vm)) {
-				bitmap_set_nolock(vcpu->pcpu_id, &mask);
-				make_pcpu_offline(vcpu->pcpu_id);
+				bitmap_set_nolock(pcpuid_from_vcpu(vcpu), &mask);
+				make_pcpu_offline(pcpuid_from_vcpu(vcpu));
 			}
 		}
 
@@ -529,7 +529,7 @@ void start_vm(struct acrn_vm *vm)
 
 	/* Only start BSP (vid = 0) and let BSP start other APs */
 	vcpu = vcpu_from_vid(vm, 0U);
-	schedule_vcpu(vcpu);
+	launch_vcpu(vcpu);
 }
 
 /**
@@ -633,7 +633,7 @@ void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
 	set_ap_entry(bsp, wakeup_vec);
 
 	init_vmcs(bsp);
-	schedule_vcpu(bsp);
+	launch_vcpu(bsp);
 }
 
 /**
@@ -654,15 +654,12 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 			(void)mptable_build(vm);
 		}
 
-		for (i = 0U; i < get_pcpu_nums(); i++) {
-			if (bitmap_test(i, &vm_config->pcpu_bitmap)) {
-				err = prepare_vcpu(vm, i);
-				if (err != 0) {
-					break;
-				}
+		for (i = 0U; i < vm_config->cpu_num; i++) {
+			err = prepare_vcpu(vm, vm_config->vcpu_sched_affinity[i]);
+			if (err != 0) {
+				break;
 			}
 		}
-
 	}
 
 	if (err == 0) {

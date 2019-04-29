@@ -5,6 +5,9 @@
  */
 
 #include <vm_config.h>
+#include <bits.h>
+#include <errno.h>
+#include <schedule.h>
 #include <logmsg.h>
 #include <cat.h>
 
@@ -61,14 +64,44 @@ static bool check_vm_uuid_collision(uint16_t vm_id)
 	return ret;
 }
 
+static int32_t init_pcpu_schedulers(struct acrn_vm_config *vm_config)
+{
+	int32_t ret = 0;
+	uint16_t pcpu_id;
+	struct acrn_scheduler *scheduler;
+	uint64_t pcpu_bitmap = vm_config->pcpu_bitmap;
+
+	/* verify & set scheduler for all pcpu of this VM */
+	pcpu_id = ffs64(pcpu_bitmap);
+	while (pcpu_id != INVALID_BIT_INDEX) {
+		scheduler = get_scheduler(pcpu_id);
+		if (scheduler && scheduler != find_scheduler_by_name(vm_config->scheduler)) {
+			pr_err("%s: detect scheduler conflict on pcpu%d\n", __func__, pcpu_id);
+			ret = -EINVAL;
+			break;
+		}
+		scheduler = find_scheduler_by_name(vm_config->scheduler);
+		if (!scheduler) {
+			pr_err("%s: No valid scheduler found for pcpu%d\n", __func__, pcpu_id);
+			ret = -EINVAL;
+			break;
+		}
+		set_scheduler(pcpu_id, scheduler);
+		bitmap_clear_nolock(pcpu_id, &pcpu_bitmap);
+		pcpu_id = ffs64(pcpu_bitmap);
+	}
+
+	return ret;
+}
+
 /**
  * @pre vm_config != NULL
  */
 bool sanitize_vm_config(void)
 {
 	bool ret = true;
-	uint16_t vm_id;
-	uint64_t sos_pcpu_bitmap, pre_launch_pcpu_bitmap;
+	uint16_t vm_id, vcpu_id, pcpu_num;
+	uint64_t sos_pcpu_bitmap, pre_launch_pcpu_bitmap, affinity = 0UL;
 	struct acrn_vm_config *vm_config;
 
 	sos_pcpu_bitmap = (uint64_t)((((uint64_t)1U) << get_pcpu_nums()) - 1U);
@@ -105,12 +138,33 @@ bool sanitize_vm_config(void)
 			}
 			break;
 		case POST_LAUNCHED_VM:
-			/* Nothing to do here for a POST_LAUNCHED_VM, break directly. */
+			if (vm_config->pcpu_bitmap == 0U || (vm_config->pcpu_bitmap & pre_launch_pcpu_bitmap) != 0U) {
+				pr_err("%s: Post-launch VM has no pcpus or share pcpu with Pre-launch VM!", __func__);
+				ret = false;
+			}
+			pcpu_num = bitmap_weight(vm_config->pcpu_bitmap);
+			if (pcpu_num < vm_config->cpu_num) {
+				pr_err("%s: One VM cannot have multi vcpus share one pcpu!", __func__);
+				ret = false;
+			}
+			for (vcpu_id = 0; vcpu_id < vm_config->cpu_num; vcpu_id++) {
+				if (bitmap_weight(vm_config->vcpu_sched_affinity[vcpu_id]) > 1) {
+					pr_err("%s: vm%u vcpu%u should have only one prefer affinity pcpu!", __func__, vm_id, vcpu_id);
+					ret = false;
+				}
+				affinity |= vm_config->vcpu_sched_affinity[vcpu_id];
+			}
+			if (bitmap_weight(affinity) != vm_config->cpu_num) {
+				pr_err("%s: One VM cannot have multi vcpus share one pcpu!", __func__);
+				ret = false;
+			}
 			break;
 		default:
 			/* Nothing to do for a UNDEFINED_VM, break directly. */
 			break;
 		}
+
+		ret |= init_pcpu_schedulers(vm_config);
 
 		if ((vm_config->guest_flags & GUEST_FLAG_CLOS_REQUIRED) != 0U) {
 			if (cat_cap_info.support && (vm_config->clos <= cat_cap_info.clos_max)) {

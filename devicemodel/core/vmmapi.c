@@ -88,7 +88,7 @@ check_api(int fd)
 static int devfd = -1;
 
 struct vmctx *
-vm_create(const char *name, uint64_t req_buf)
+vm_create(const char *name, uint64_t req_buf, int *vcpu_num)
 {
 	struct vmctx *ctx;
 	struct acrn_create_vm create_vm;
@@ -163,6 +163,8 @@ vm_create(const char *name, uint64_t req_buf)
 		usleep(500000);
 		retry--;
 	}
+
+	*vcpu_num = create_vm.vcpu_num;
 
 	if (error) {
 		pr_err("failed to create VM %s\n", ctx->name);
@@ -594,19 +596,6 @@ vm_reset_ptdev_intx_info(struct vmctx *ctx, uint16_t virt_bdf, uint16_t phys_bdf
 	ptirq.phys_bdf = phys_bdf;
 
 	return ioctl(ctx->fd, IC_RESET_PTDEV_INTR_INFO, &ptirq);
-}
-
-int
-vm_create_vcpu(struct vmctx *ctx, uint16_t vcpu_id)
-{
-	struct acrn_create_vcpu cv;
-	int error;
-
-	bzero(&cv, sizeof(struct acrn_create_vcpu));
-	cv.vcpu_id = vcpu_id;
-	error = ioctl(ctx->fd, IC_CREATE_VCPU, &cv);
-
-	return error;
 }
 
 int

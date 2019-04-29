@@ -215,7 +215,6 @@ void init_pcpu_post(uint16_t pcpu_id)
 			pr_fatal("Please apply the latest CPU uCode patch!");
 		}
 
-		init_scheduler();
 
 		/* Initialize interrupts */
 		init_interrupt(BOOT_CPU_ID);
@@ -230,6 +229,8 @@ void init_pcpu_post(uint16_t pcpu_id)
 		}
 
 		ptdev_init();
+
+		init_sched(pcpu_id);
 
 		/* Start all secondary cores */
 		startup_paddr = prepare_trampoline();
@@ -246,6 +247,7 @@ void init_pcpu_post(uint16_t pcpu_id)
 
 		timer_init();
 
+		init_sched(pcpu_id);
 		/* Wait for boot processor to signal all secondary cores to continue */
 		wait_sync_change(&pcpu_sync, 0UL);
 	}
@@ -332,6 +334,19 @@ bool start_pcpus(uint64_t mask)
 	atomic_store64(&pcpu_sync, 0UL);
 
 	return ((pcpu_active_bitmap & mask) == mask);
+}
+
+void make_pcpu_offline(uint16_t pcpu_id)
+{
+	bitmap_set_lock(REQ_OFFLINE, &per_cpu(pcpu_flag, pcpu_id));
+	if (get_pcpu_id() != pcpu_id) {
+		send_single_ipi(pcpu_id, VECTOR_NOTIFY_VCPU);
+	}
+}
+
+int32_t need_offline(uint16_t pcpu_id)
+{
+	return bitmap_test_and_clear_lock(REQ_OFFLINE, &per_cpu(pcpu_flag, pcpu_id));
 }
 
 void wait_pcpus_offline(uint64_t mask)

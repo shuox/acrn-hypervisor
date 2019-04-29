@@ -157,6 +157,7 @@ void host_enter_s3(struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_val, u
 	CPU_IRQ_DISABLE();
 	vmx_off();
 
+	suspend_sched();
 	suspend_console();
 	suspend_ioapic();
 	suspend_iommu();
@@ -168,6 +169,7 @@ void host_enter_s3(struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_val, u
 	resume_iommu();
 	resume_ioapic();
 	resume_console();
+	resume_sched();
 
 	vmx_on();
 	CPU_IRQ_ENABLE();

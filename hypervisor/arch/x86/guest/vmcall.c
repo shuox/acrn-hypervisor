@@ -94,15 +94,6 @@ static int32_t dispatch_hypercall(struct acrn_vcpu *vcpu)
 		}
 		break;
 
-	case HC_CREATE_VCPU:
-		/* param1: vmid */
-		if (vmid_is_valid) {
-			spinlock_obtain(&vmm_hypercall_lock);
-			ret = hcall_create_vcpu(vm, vm_id, param2);
-			spinlock_release(&vmm_hypercall_lock);
-		}
-		break;
-
 	case HC_SET_VCPU_REGS:
 		/* param1: vmid */
 		if (vmid_is_valid) {

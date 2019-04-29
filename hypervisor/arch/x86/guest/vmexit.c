@@ -31,6 +31,7 @@ static int32_t xsetbv_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t wbinvd_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t undefined_vmexit_handler(struct acrn_vcpu *vcpu);
 static int32_t init_signal_vmexit_handler(__unused struct acrn_vcpu *vcpu);
+static int32_t hlt_pause_vmexit_handler(__unused struct acrn_vcpu *vcpu);
 
 /* VM Dispatch table for Exit condition handling */
 static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
@@ -59,7 +60,7 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 	[VMX_EXIT_REASON_GETSEC] = {
 		.handler = unhandled_vmexit_handler},
 	[VMX_EXIT_REASON_HLT] = {
-		.handler = unhandled_vmexit_handler},
+		.handler = hlt_pause_vmexit_handler},
 	[VMX_EXIT_REASON_INVD] = {
 		.handler = unhandled_vmexit_handler},
 	[VMX_EXIT_REASON_INVLPG] = {
@@ -114,7 +115,7 @@ static const struct vm_exit_dispatch dispatch_table[NR_VMX_EXIT_REASONS] = {
 	[VMX_EXIT_REASON_MONITOR] = {
 		.handler = unhandled_vmexit_handler},
 	[VMX_EXIT_REASON_PAUSE] = {
-		.handler = unhandled_vmexit_handler},
+		.handler = hlt_pause_vmexit_handler},
 	[VMX_EXIT_REASON_ENTRY_FAILURE_MACHINE_CHECK] = {
 		.handler = unhandled_vmexit_handler},
 	[VMX_EXIT_REASON_TPR_BELOW_THRESHOLD] = {
@@ -174,7 +175,7 @@ int32_t vmexit_handler(struct acrn_vcpu *vcpu)
 	uint16_t basic_exit_reason;
 	int32_t ret;
 
-	if (get_pcpu_id() != vcpu->pcpu_id) {
+	if (get_pcpu_id() != pcpuid_from_vcpu(vcpu)) {
 		pr_fatal("vcpu is not running on its pcpu!");
 		ret = -EINVAL;
 	} else {
@@ -257,6 +258,12 @@ static int32_t triple_fault_vmexit_handler(struct acrn_vcpu *vcpu)
 		vcpu->vm->vm_id, exec_vmread(VMX_GUEST_RIP), exec_vmread(VMX_EXIT_QUALIFICATION));
 	triple_fault_shutdown_vm(vcpu->vm);
 
+	return 0;
+}
+
+static int32_t hlt_pause_vmexit_handler(__unused struct acrn_vcpu *vcpu)
+{
+	yield();
 	return 0;
 }
 

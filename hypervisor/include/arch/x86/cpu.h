@@ -253,6 +253,10 @@ enum pcpu_boot_state {
 	PCPU_STATE_DEAD,
 };
 
+#define REQ_OFFLINE	(1U)
+void make_pcpu_offline(uint16_t pcpu_id);
+int32_t need_offline(uint16_t pcpu_id);
+
 /* Function prototypes */
 void cpu_do_idle(void);
 void cpu_dead(void);
