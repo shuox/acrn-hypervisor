@@ -17,6 +17,7 @@
 #include <ioapic.h>
 #include <ptdev.h>
 #include <vm.h>
+#include <schedule.h>
 #include <sprintf.h>
 #include <logmsg.h>
 
@@ -36,6 +37,7 @@ static int32_t shell_cmd_help(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vm(__unused int32_t argc, __unused char **argv);
 static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv);
 static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv);
+static int32_t shell_sched_dump(int32_t argc, char **argv);
 static int32_t shell_dumpmem(int32_t argc, char **argv);
 static int32_t shell_to_vm_console(int32_t argc, char **argv);
 static int32_t shell_show_cpu_int(__unused int32_t argc, __unused char **argv);
@@ -72,6 +74,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_VCPU_DUMPREG_PARAM,
 		.help_str	= SHELL_CMD_VCPU_DUMPREG_HELP,
 		.fcn		= shell_vcpu_dumpreg,
+	},
+	{
+		.str		= SHELL_CMD_SCHED_DUMP,
+		.cmd_param	= SHELL_CMD_SCHED_DUMP_PARAM,
+		.help_str	= SHELL_CMD_SCHED_DUMP_HELP,
+		.fcn		= shell_sched_dump,
 	},
 	{
 		.str		= SHELL_CMD_DUMPMEM,
@@ -793,6 +801,55 @@ static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv)
 	}
 	shell_puts(shell_log_buf);
 	status = 0;
+
+out:
+	return status;
+}
+
+void dump_sched_obj(struct sched_object *obj)
+{
+	struct sched_context *ctx = &per_cpu(sched_ctx, obj->pcpu_id);
+	pr_acrnlog("%12s%8d%15lld%15lld%15lld/%lld", obj->name, obj->status,
+			ticks_to_us(obj->stats.total_runtime), obj->stats.sched_count,
+			obj->stats.total_runtime, (rdtsc() - ctx->start_time));
+}
+
+void dump_sched(uint16_t pcpu_id)
+{
+	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+	struct sched_object *obj;
+	struct list_head *pos;
+
+	spinlock_obtain(&ctx->scheduler_lock);
+	spinlock_obtain(&ctx->queue_lock);
+	pr_acrnlog("Dump scheduling statistics for pcpu%u", pcpu_id);
+	pr_acrnlog("scheduler: %s start: %lld(us)  current: %s", ctx->scheduler->name,
+			ticks_to_us(ctx->start_time), ctx->current->name);
+	pr_acrnlog("%12s%8s%15s(us)%15s(us)%15s", "object", "status", "total_runtime", "sched_count", "percent");
+	list_for_each(pos, &ctx->runqueue) {
+		obj = list_entry(pos, struct sched_object, list);
+		dump_sched_obj(obj);
+	}
+	list_for_each(pos, &ctx->retired_queue) {
+		obj = list_entry(pos, struct sched_object, list);
+		dump_sched_obj(obj);
+	}
+	spinlock_release(&ctx->queue_lock);
+	spinlock_release(&ctx->scheduler_lock);
+}
+
+static int32_t shell_sched_dump(int32_t argc, char **argv)
+{
+	uint16_t pcpu_id;
+	int32_t status = 0;
+
+	if (argc != 2) {
+		shell_puts("Please enter cmd with <pcpu_id>\r\n");
+		status = -EINVAL;
+		goto out;
+	}
+	pcpu_id = (uint16_t)strtol_deci(argv[1]);
+	dump_sched(pcpu_id);
 
 out:
 	return status;
