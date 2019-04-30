@@ -42,6 +42,12 @@ struct sched_object {
 	switch_t switch_in;
 	switch_t switch_out;
 
+	struct {
+		uint64_t last;
+		uint64_t total_runtime;
+		uint64_t sched_count;
+	} stats;
+
 	uint32_t data[SCHED_DATA_SIZE];
 };
 
@@ -53,6 +59,7 @@ struct sched_context {
 	uint64_t flags;
 	struct sched_object *current;
 	struct hv_timer tick_timer;
+	uint64_t start_time;
 
 	struct acrn_scheduler *scheduler;
 };

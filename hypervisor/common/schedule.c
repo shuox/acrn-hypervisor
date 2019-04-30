@@ -101,6 +101,7 @@ void init_sched(uint16_t pcpu_id)
 	INIT_LIST_HEAD(&ctx->retired_queue);
 	ctx->flags = 0UL;
 	ctx->current = NULL;
+	ctx->start_time = rdtsc();
 
 	scheduler->init(ctx);
 }
@@ -265,6 +266,7 @@ void schedule(void)
 	struct acrn_scheduler *scheduler = get_scheduler(pcpu_id);
 	struct sched_object *next = NULL;
 	struct sched_object *prev = ctx->current;
+	uint64_t now = rdtsc();
 
 	get_schedule_lock(pcpu_id);
 	bitmap_clear_lock(NEED_RESCHEDULE, &ctx->flags);
@@ -276,6 +278,13 @@ void schedule(void)
 	 */
 	if (prev != next) {
 		pr_info("%s: prev[%s] next[%s][%x]", __func__, prev->name, next->name, next->host_sp);
+		next->stats.last = now;
+		next->stats.sched_count++;
+		if (prev->stats.last == 0UL) {
+			prev->stats.last = ctx->start_time;
+		}
+		prev->stats.total_runtime += now - prev->stats.last;
+		prev->stats.last = now;
 		arch_switch_to(&prev->host_sp, &next->host_sp);
 	}
 }
