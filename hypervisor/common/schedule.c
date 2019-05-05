@@ -115,11 +115,11 @@ void sched_init_data(struct sched_object *obj)
 /* need refine to scheduler's callback with scheduler config */
 uint16_t sched_pick_pcpu(uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity)
 {
-	uint16_t pcpu;
+	uint16_t pcpu = 0;
 
 	pcpu = ffs64(cpus_bitmap & vcpu_sched_affinity);
 	if (pcpu == INVALID_BIT_INDEX) {
-		return -1;
+		return INVALID_CPU_ID;
 	}
 
 	return pcpu;

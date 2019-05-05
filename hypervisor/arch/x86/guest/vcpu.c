@@ -706,13 +706,14 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
  *
  * help function for vcpu create
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
+int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity)
 {
 	int32_t ret = 0;
 	struct acrn_vcpu *vcpu = NULL;
 	char thread_name[16];
 	uint64_t orig_val, final_val;
 	struct acrn_vm_config *conf;
+	uint16_t pcpu_id;
 
 	ret = create_vcpu(vm, &vcpu);
 	if (ret != 0) {
@@ -720,6 +721,12 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 	}
 
 	conf = get_vm_config(vm->vm_id);
+	pcpu_id = sched_pick_pcpu(conf->pcpu_bitmap, vcpu_affinity);
+	if (pcpu_id == INVALID_CPU_ID) {
+		ret = -1;
+		return ret;
+	}
+
 	/* Update CLOS for this CPU */
 	if (cat_cap_info.enabled) {
 		orig_val = msr_read(MSR_IA32_PQR_ASSOC);

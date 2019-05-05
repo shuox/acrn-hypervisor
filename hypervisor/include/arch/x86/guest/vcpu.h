@@ -695,12 +695,12 @@ void schedule_vcpu(struct acrn_vcpu *vcpu);
  * Create a vcpu for the vm, and mapped to the pcpu.
  *
  * @param[inout] vm pointer to vm data structure
- * @param[in] pcpu_id which the vcpu will be mapped
+ * @param[in] vcpu_affinity the vcpu preferred pcpu bitmap
  *
  * @retval 0 on success
  * @retval -EINVAL if the vCPU ID is invalid
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id);
+int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity);
 
 /**
  * @brief get physical destination cpu mask
