@@ -252,7 +252,7 @@ static int32_t unhandled_vmexit_handler(struct acrn_vcpu *vcpu)
 
 static int32_t hlt_pause_vmexit_handler(__unused struct acrn_vcpu *vcpu)
 {
-	//yield();
+	yield();
 
 	return 0;
 }
