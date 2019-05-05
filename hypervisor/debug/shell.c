@@ -849,6 +849,13 @@ static int32_t shell_sched_dump(int32_t argc, char **argv)
 		goto out;
 	}
 	pcpu_id = (uint16_t)strtol_deci(argv[1]);
+
+	if (pcpu_id >= get_pcpu_nums()) {
+		shell_puts("pcpu id is out of range\r\n");
+		status = -EINVAL;
+		goto out;
+	}
+
 	dump_sched(pcpu_id);
 
 out:
