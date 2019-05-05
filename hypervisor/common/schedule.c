@@ -156,7 +156,7 @@ void sched_retired_queue_add(struct sched_object *obj)
 	spinlock_obtain(&ctx->queue_lock);
 	if (!sched_is_active(obj)) {
 		list_add(&obj->list, &ctx->retired_queue);
-		sched_set_status(obj, SCHED_STS_BLOCKED);
+		sched_set_status(obj, SCHED_STS_RETIRED);
 	}
 	spinlock_release(&ctx->queue_lock);
 }
