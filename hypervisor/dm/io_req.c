@@ -107,11 +107,11 @@ int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_
 		clac();
 
 		/* pause vcpu in notification mode , wait for VHM to handle the MMIO request.
-		 * TODO: when pause_vcpu changed to switch vcpu out directlly, we
+		 * TODO: when vcpu_pause changed to switch vcpu out directlly, we
 		 * should fix the race issue between req.processed update and vcpu pause
 		 */
 		if (!is_polling) {
-			pause_vcpu(vcpu, VCPU_PAUSED);
+			vcpu_pause(vcpu, VCPU_PAUSED);
 		}
 
 		/* Must clear the signal before we mark req as pending
@@ -134,7 +134,7 @@ int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_
 		if (is_polling) {
 			/*
 			 * Now, we only have one case that will schedule out this vcpu
-			 * from IO completion polling status, it's pause_vcpu to VCPU_ZOMBIE.
+			 * from IO completion polling status, it's vcpu_pause to VCPU_ZOMBIE.
 			 * In this case, we cannot come back to polling status again. Currently,
 			 * it's OK as we needn't handle IO completion in zombie status.
 			 */

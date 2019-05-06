@@ -339,7 +339,7 @@ void set_ap_entry(struct acrn_vcpu *vcpu, uint64_t entry)
  *  @pre vm != NULL && rtn_vcpu_handle != NULL
  *
  ***********************************************************************/
-int32_t create_vcpu(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
+int32_t vcpu_create(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
 {
 	struct acrn_vcpu *vcpu;
 	uint16_t vcpu_id;
@@ -416,7 +416,7 @@ int32_t create_vcpu(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
 /*
  *  @pre vcpu != NULL
  */
-int32_t run_vcpu(struct acrn_vcpu *vcpu)
+int32_t vcpu_run(struct acrn_vcpu *vcpu)
 {
 	uint32_t instlen, cs_attr;
 	uint64_t rip, ia32_efer, cr0;
@@ -530,7 +530,7 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
 	return status;
 }
 
-int32_t shutdown_vcpu(__unused struct acrn_vcpu *vcpu)
+int32_t vcpu_shutdown(__unused struct acrn_vcpu *vcpu)
 {
 	/* TODO : Implement VCPU shutdown sequence */
 
@@ -540,7 +540,7 @@ int32_t shutdown_vcpu(__unused struct acrn_vcpu *vcpu)
 /*
  *  @pre vcpu != NULL
  */
-void offline_vcpu(struct acrn_vcpu *vcpu)
+void vcpu_offline(struct acrn_vcpu *vcpu)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
@@ -553,7 +553,7 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 /* NOTE:
  * vcpu should be paused before call this function.
  */
-void reset_vcpu(struct acrn_vcpu *vcpu)
+void vcpu_reset(struct acrn_vcpu *vcpu)
 {
 	int32_t i;
 	struct acrn_vlapic *vlapic;
@@ -591,7 +591,7 @@ void reset_vcpu(struct acrn_vcpu *vcpu)
 	reset_vcpu_regs(vcpu);
 }
 
-void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
+void vcpu_pause(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
@@ -608,7 +608,7 @@ void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 	}
 }
 
-void resume_vcpu(struct acrn_vcpu *vcpu)
+void vcpu_resume(struct acrn_vcpu *vcpu)
 {
 	pr_dbg("vcpu%hu resumed", vcpu->vcpu_id);
 
@@ -656,7 +656,7 @@ static void context_switch_in(struct sched_object *next)
 	rstor_fxstore_guest_area(ectx);
 }
 
-void launch_vcpu(struct acrn_vcpu *vcpu)
+void vcpu_launch(struct acrn_vcpu *vcpu)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
@@ -669,7 +669,7 @@ void launch_vcpu(struct acrn_vcpu *vcpu)
 	release_schedule_lock(pcpu_id);
 }
 
-void poke_vcpu(struct acrn_vcpu *vcpu)
+void vcpu_poke(struct acrn_vcpu *vcpu)
 {
 	poke(&vcpu->sched_obj);
 }
@@ -702,7 +702,7 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
  *
  * help function for vcpu create
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity)
+int32_t vcpu_prepare(struct acrn_vm *vm, uint64_t vcpu_affinity)
 {
 	int32_t ret = 0;
 	struct acrn_vcpu *vcpu = NULL;
@@ -711,7 +711,7 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity)
 	struct acrn_vm_config *conf;
 	uint16_t pcpu_id;
 
-	ret = create_vcpu(vm, &vcpu);
+	ret = vcpu_create(vm, &vcpu);
 	if (ret != 0) {
 		return ret;
 	}

@@ -107,7 +107,7 @@ static bool is_guest_irq_enabled(struct acrn_vcpu *vcpu)
 void vcpu_make_request(struct acrn_vcpu *vcpu, uint16_t eventid)
 {
 	bitmap_set_lock(eventid, &vcpu->arch.pending_req);
-	poke_vcpu(vcpu);
+	vcpu_poke(vcpu);
 }
 
 /*
