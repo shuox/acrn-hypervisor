@@ -9,7 +9,6 @@
 #include <spinlock.h>
 
 #define	NEED_RESCHEDULE		(1U)
-#define	NEED_OFFLINE		(2U)
 
 #define DEL_MODE_INIT		(1U)
 #define DEL_MODE_IPI		(2U)
@@ -105,8 +104,6 @@ uint16_t sched_get_pcpuid(const struct sched_object *obj);
 
 void make_reschedule_request(uint16_t pcpu_id, uint16_t delmode);
 bool need_reschedule(uint16_t pcpu_id);
-void make_pcpu_offline(uint16_t pcpu_id);
-int32_t need_offline(uint16_t pcpu_id);
 
 void sched_set_status(struct sched_object *obj, uint16_t status);
 void sleep(struct sched_object *obj);
