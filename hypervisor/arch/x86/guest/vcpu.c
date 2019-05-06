@@ -678,6 +678,11 @@ void schedule_vcpu(struct acrn_vcpu *vcpu)
 	release_schedule_lock(pcpu_id);
 }
 
+void poke_vcpu(struct acrn_vcpu *vcpu)
+{
+	poke(&vcpu->sched_obj);
+}
+
 static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
 {
 	uint64_t rsp = (uint64_t)&vcpu->stack[CONFIG_STACK_SIZE - 1];

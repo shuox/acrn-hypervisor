@@ -690,6 +690,17 @@ void resume_vcpu(struct acrn_vcpu *vcpu);
 void schedule_vcpu(struct acrn_vcpu *vcpu);
 
 /**
+ * @brief poke the vcpu and let it handle pending events
+ *
+ * Notify a vCPU to handle the pending events.
+ *
+ * @param[inout] vcpu pointer to vcpu data structure
+ *
+ * @return None
+ */
+void poke_vcpu(struct acrn_vcpu *vcpu);
+
+/**
  * @brief create a vcpu for the vm and mapped to the pcpu.
  *
  * Create a vcpu for the vm, and mapped to the pcpu.
