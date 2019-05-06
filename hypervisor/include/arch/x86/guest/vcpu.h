@@ -687,7 +687,7 @@ void resume_vcpu(struct acrn_vcpu *vcpu);
  *
  * @return None
  */
-void schedule_vcpu(struct acrn_vcpu *vcpu);
+void launch_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief poke the vcpu and let it handle pending events

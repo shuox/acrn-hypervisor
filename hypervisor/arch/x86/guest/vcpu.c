@@ -665,7 +665,7 @@ static void context_switch_in(struct sched_object *next)
 	rstor_fxstore_guest_area(ectx);
 }
 
-void schedule_vcpu(struct acrn_vcpu *vcpu)
+void launch_vcpu(struct acrn_vcpu *vcpu)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
