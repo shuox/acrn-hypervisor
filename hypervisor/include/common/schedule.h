@@ -24,7 +24,12 @@ enum sched_object_state {
 	SCHED_STS_RUNNABLE,
 	SCHED_STS_RUNNING,
 	SCHED_STS_RETIRED,
-	SCHED_STS_PAUSED,
+	SCHED_STS_PAUSED
+};
+
+enum sched_notify_mode {
+	SCHED_NOTIFY_INIT = DEL_MODE_INIT,
+	SCHED_NOTIFY_IPI = DEL_MODE_IPI
 };
 
 struct sched_object;
@@ -37,6 +42,7 @@ struct sched_object {
 	struct list_head list;
 	sched_thread thread;
 	volatile enum sched_object_state status;
+	enum sched_notify_mode notify_mode;
 
 	uint64_t host_sp;
 	switch_t switch_in;

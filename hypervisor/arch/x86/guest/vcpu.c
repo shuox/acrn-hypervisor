@@ -600,16 +600,7 @@ void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 	vcpu->prev_state = vcpu->state;
 	vcpu->state = new_state;
 
-	/*
-	 * If lapic passthrough, the pcpu has no vcpu sharing. So we are good to send INIT
-	 * to such pcpu here.
-	 * At the moment, pcpu should be not dead as we are going to pause its vcpu.
-	 */
-	if (is_lapic_pt(vcpu->vm)) {
-		make_reschedule_request(pcpu_id, DEL_MODE_INIT);
-	} else {
-		sleep(&vcpu->sched_obj);
-	}
+	sleep(&vcpu->sched_obj);
 
 	if (pcpu_id != get_pcpu_id()) {
 		while (atomic_load32(&vcpu->running) == 1U)
@@ -744,6 +735,7 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity)
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
 	vcpu->sched_obj.thread = vcpu_thread;
 	vcpu->sched_obj.pcpu_id = pcpu_id;
+	vcpu->sched_obj.notify_mode = is_lapic_pt(vm) ? SCHED_NOTIFY_INIT : SCHED_NOTIFY_IPI;
 	vcpu->sched_obj.host_sp = build_stack_frame(vcpu);
 	vcpu->sched_obj.switch_out = context_switch_out;
 	vcpu->sched_obj.switch_in = context_switch_in;

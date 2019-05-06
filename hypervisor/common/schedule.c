@@ -301,10 +301,14 @@ void sleep(struct sched_object *obj)
 	uint16_t pcpu_id = obj->pcpu_id;
 
 	get_schedule_lock(pcpu_id);
-	if (is_running(obj)) {
-		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
-	}
 	sched_queue_remove(obj);
+	if (obj->notify_mode == SCHED_NOTIFY_INIT) {
+		make_reschedule_request(pcpu_id, DEL_MODE_INIT);
+	} else {
+		if (is_running(obj)) {
+			make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+		}
+	}
 	release_schedule_lock(pcpu_id);
 }
 
