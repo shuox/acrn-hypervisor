@@ -64,7 +64,11 @@ struct sched_context {
 	uint64_t flags;
 	struct sched_object *current;
 	struct hv_timer tick_timer;
-	uint64_t start_time;
+
+	struct {
+		uint64_t start_time;
+		uint64_t tick_count;
+	} stats;
 
 	struct acrn_scheduler *scheduler;
 };
@@ -78,6 +82,17 @@ struct acrn_scheduler {
 	void 	 (*init_data)(struct sched_object *obj);
 	/* pick the next schedule object */
 	struct sched_object* (*pick_next)(struct sched_context *ctx);
+	/* put schedule object into sleep */
+	void	 (*sleep)(struct sched_context *ctx, struct sched_object *obj);
+	/* wake up schedule object from sleep status */
+	void	 (*wake)(struct sched_context *ctx, struct sched_object *obj);
+	/* migrate schedule object from one context to another */
+	void	 (*migrate)(struct sched_context *to, struct sched_context *from,
+			struct sched_object *obj);
+	/* deinit private data of scheduler */
+	void 	 (*deinit_data)(struct sched_object *obj);
+	/* deinit scheduler */
+	int	 (*deinit)(struct sched_context *ctx);
 };
 extern struct acrn_scheduler sched_rr;
 extern struct acrn_scheduler sched_pin;

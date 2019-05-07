@@ -42,6 +42,7 @@ static void sched_tick_handler(void *param)
 	uint64_t now = rdtsc();
 
 	get_schedule_lock(pcpu_id);
+	ctx->stats.tick_count++;
 	current = ctx->current;
 
 	/* replenish retired sched_objects with slice_cycles, then move them to runqueue */

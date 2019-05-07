@@ -819,7 +819,7 @@ void dump_sched_obj(struct sched_object *obj)
 	struct sched_context *ctx = &per_cpu(sched_ctx, obj->pcpu_id);
 	pr_acrnlog("%12s%10s%15lld%15lld%25lld/%lld", obj->name, sched_status_txt[obj->status],
 			ticks_to_us(obj->stats.total_runtime), obj->stats.sched_count,
-			obj->stats.total_runtime, (rdtsc() - ctx->start_time));
+			obj->stats.total_runtime, (rdtsc() - ctx->stats.start_time));
 }
 
 void dump_sched(uint16_t pcpu_id)
@@ -831,8 +831,8 @@ void dump_sched(uint16_t pcpu_id)
 	spinlock_obtain(&ctx->scheduler_lock);
 	spinlock_obtain(&ctx->queue_lock);
 	pr_acrnlog("Dump scheduling statistics for pcpu%u", pcpu_id);
-	pr_acrnlog("scheduler: %s start: %lld(us)  current: %s", ctx->scheduler->name,
-			ticks_to_us(ctx->start_time), ctx->current->name);
+	pr_acrnlog("scheduler: %s start: %lld(us)  current: %s  tick: %lld", ctx->scheduler->name,
+			ticks_to_us(ctx->stats.start_time), ctx->current->name, ctx->stats.tick_count);
 	pr_acrnlog("%12s%10s%15s(us)%15s(us)%25s", "object", "status", "total_runtime", "sched_count", "percent");
 	list_for_each(pos, &ctx->runqueue) {
 		obj = list_entry(pos, struct sched_object, list);
