@@ -38,6 +38,8 @@ struct per_cpu_region {
 	struct per_cpu_timers cpu_timers;
 	struct sched_context sched_ctx;
 	struct sched_object idle;
+	struct sched_rr_context sched_rr_ctx;
+	struct sched_mono_context sched_mono_ctx;
 	struct host_gdt gdt;
 	struct tss_64 tss;
 	enum pcpu_boot_state boot_state;

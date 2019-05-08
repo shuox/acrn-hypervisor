@@ -20,10 +20,9 @@
 
 enum sched_object_state {
 	SCHED_STS_UNKNOWN,
-	SCHED_STS_RUNNABLE,
 	SCHED_STS_RUNNING,
-	SCHED_STS_RETIRED,
-	SCHED_STS_PAUSED
+	SCHED_STS_WAITING,
+	SCHED_STS_SLEEPING
 };
 
 enum sched_notify_mode {
@@ -38,6 +37,7 @@ typedef void (*switch_t)(struct sched_object *obj);
 struct sched_object {
 	char name[16];
 	uint16_t pcpu_id;
+	struct sched_context *ctx;
 	struct list_head list;
 	sched_thread thread;
 	volatile enum sched_object_state status;
@@ -57,47 +57,65 @@ struct sched_object {
 };
 
 struct sched_context {
+	uint16_t pcpu_id;
 	spinlock_t scheduler_lock;
-	spinlock_t queue_lock;
-	struct list_head runqueue;
-	struct list_head retired_queue;
 	uint64_t flags;
 	struct sched_object *current;
-	struct hv_timer tick_timer;
-
-	struct {
-		uint64_t start_time;
-		uint64_t tick_count;
-	} stats;
-
 	struct acrn_scheduler *scheduler;
+	void *priv;
 };
 
 struct acrn_scheduler {
 	char name[16];
 
 	/* init scheduler */
-	int	 (*init)(struct sched_context *ctx);
+	int	(*init)(struct sched_context *ctx);
 	/* init private data of scheduler */
-	void 	 (*init_data)(struct sched_object *obj);
+	void 	(*init_data)(struct sched_object *obj);
+	void	(*insert)(struct sched_object *obj);
 	/* pick the next schedule object */
 	struct sched_object* (*pick_next)(struct sched_context *ctx);
 	/* put schedule object into sleep */
-	void	 (*sleep)(struct sched_context *ctx, struct sched_object *obj);
+	void	(*sleep)(struct sched_object *obj);
 	/* wake up schedule object from sleep status */
-	void	 (*wake)(struct sched_context *ctx, struct sched_object *obj);
+	void	(*wake)(struct sched_object *obj);
+	/* yield current schedule object */
+	void 	(*yield)(struct sched_context *ctx);
+	/* poke the schedule object */
+	void	(*poke)(struct sched_object *obj);
 	/* migrate schedule object from one context to another */
-	void	 (*migrate)(struct sched_context *to, struct sched_context *from,
+	void	(*migrate)(struct sched_context *to, struct sched_context *from,
 			struct sched_object *obj);
 	/* deinit private data of scheduler */
-	void 	 (*deinit_data)(struct sched_object *obj);
+	void 	(*deinit_data)(struct sched_object *obj);
 	/* deinit scheduler */
-	int	 (*deinit)(struct sched_context *ctx);
+	int	(*deinit)(struct sched_context *ctx);
+
+	void 	(*dump)(struct sched_context *ctx);
 };
 extern struct acrn_scheduler sched_rr;
-extern struct acrn_scheduler sched_pin;
+extern struct acrn_scheduler sched_mono;
 
-void init_sched(uint16_t pcpu_id);
+struct sched_rr_context {
+	struct list_head runqueue;
+	struct list_head retired_queue;
+	struct hv_timer tick_timer;
+
+	struct {
+		uint64_t start_time;
+		uint64_t tick_count;
+	} stats;
+};
+
+struct sched_mono_context {
+	struct sched_object *mono_sched_obj;
+
+	struct {
+		uint64_t start_time;
+	} stats;
+};
+
+int init_sched(uint16_t pcpu_id);
 void switch_to_idle(sched_thread thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
@@ -107,20 +125,15 @@ struct acrn_scheduler *get_scheduler(uint16_t pcpu_id);
 struct acrn_scheduler *find_scheduler_by_name(const char *name);
 uint16_t sched_pick_pcpu(uint64_t pcpu_bitmap, uint64_t vcpu_sched_affinity);
 void sched_init_data(struct sched_object *obj);
-void sched_runqueue_add_head(struct sched_object *obj);
-void sched_runqueue_add_tail(struct sched_object *obj);
-void sched_retired_queue_add(struct sched_object *obj);
-void sched_queue_remove(struct sched_object *obj);
 
 bool sched_is_idle(struct sched_object *obj);
-bool sched_is_active(struct sched_object *obj);
 struct sched_object *sched_get_current(uint16_t pcpu_id);
 uint16_t sched_get_pcpuid(const struct sched_object *obj);
 
+void schedule_on_pcpu(uint16_t pcpu_id, struct sched_object *obj);
 void make_reschedule_request(uint16_t pcpu_id, uint16_t delmode);
 bool need_reschedule(uint16_t pcpu_id);
 
-void sched_set_status(struct sched_object *obj, uint16_t status);
 void sleep(struct sched_object *obj);
 void wake(struct sched_object *obj);
 void poke(struct sched_object *obj);

@@ -663,10 +663,7 @@ void vcpu_launch(struct acrn_vcpu *vcpu)
 	vcpu->state = VCPU_RUNNING;
 	pr_info("vcpu%hu scheduled on pcpu%hu", vcpu->vcpu_id, pcpu_id);
 
-	get_schedule_lock(pcpu_id);
-	sched_runqueue_add_head(&vcpu->sched_obj);
-	make_reschedule_request(pcpu_id, DEL_MODE_IPI);
-	release_schedule_lock(pcpu_id);
+	schedule_on_pcpu(pcpu_id, &vcpu->sched_obj);
 }
 
 void vcpu_poke(struct acrn_vcpu *vcpu)
@@ -733,6 +730,7 @@ int32_t vcpu_prepare(struct acrn_vm *vm, uint64_t vcpu_affinity)
 	INIT_LIST_HEAD(&vcpu->sched_obj.list);
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
+	vcpu->sched_obj.ctx = &per_cpu(sched_ctx, pcpu_id);
 	vcpu->sched_obj.thread = vcpu_thread;
 	vcpu->sched_obj.pcpu_id = pcpu_id;
 	vcpu->sched_obj.notify_mode = is_lapic_pt(vm) ? SCHED_NOTIFY_INIT : SCHED_NOTIFY_IPI;

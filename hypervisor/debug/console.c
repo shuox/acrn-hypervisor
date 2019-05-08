@@ -96,7 +96,7 @@ struct acrn_vuart *vuart_console_active(void)
 			vu = vm_console_vuart(vm);
 		} else {
 			/* Console vm is invalid, switch back to HV-Shell */
-			console_vmid = ACRN_INVALID_VMID;
+			//console_vmid = ACRN_INVALID_VMID;
 		}
 	}
 
