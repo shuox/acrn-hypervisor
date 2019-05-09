@@ -38,7 +38,6 @@ struct sched_object {
 	char name[16];
 	uint16_t pcpu_id;
 	struct sched_context *ctx;
-	struct list_head list;
 	sched_thread thread;
 	volatile enum sched_object_state status;
 	enum sched_notify_mode notify_mode;

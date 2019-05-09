@@ -727,7 +727,6 @@ int32_t vcpu_prepare(struct acrn_vm *vm, uint64_t vcpu_affinity)
 		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, pcpu_id);
 	}
 
-	INIT_LIST_HEAD(&vcpu->sched_obj.list);
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
 	vcpu->sched_obj.ctx = &per_cpu(sched_ctx, pcpu_id);

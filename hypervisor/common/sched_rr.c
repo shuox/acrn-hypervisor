@@ -18,6 +18,9 @@
 #define CONFIG_SLICE_MS 10UL
 
 struct sched_rr_data {
+	/* keep list as the first item */
+	struct list_head list;
+
 	uint64_t slice_cycles;
 	uint64_t last_cycles;
 	int64_t  left_cycles;
@@ -25,40 +28,45 @@ struct sched_rr_data {
 
 bool is_active(struct sched_object *obj)
 {
-	return !list_empty(&obj->list);
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
+	return !list_empty(&data->list);
 }
 
 void runqueue_add_head(struct sched_object *obj)
 {
 	struct sched_rr_context *rr_ctx = (struct sched_rr_context *)obj->ctx->priv;
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
 
 	if (!is_active(obj)) {
-		list_add(&obj->list, &rr_ctx->runqueue);
+		list_add(&data->list, &rr_ctx->runqueue);
 	}
 }
 
 void runqueue_add_tail(struct sched_object *obj)
 {
 	struct sched_rr_context *rr_ctx = (struct sched_rr_context *)obj->ctx->priv;
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
 
 	if (!is_active(obj)) {
-		list_add_tail(&obj->list, &rr_ctx->runqueue);
+		list_add_tail(&data->list, &rr_ctx->runqueue);
 	}
 }
 
 void retired_queue_add(struct sched_object *obj)
 {
 	struct sched_rr_context *rr_ctx = (struct sched_rr_context *)obj->ctx->priv;
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
 
 	if (!is_active(obj)) {
-		list_add(&obj->list, &rr_ctx->retired_queue);
+		list_add(&data->list, &rr_ctx->retired_queue);
 	}
 }
 
 void queue_remove(struct sched_object *obj)
 {
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
 	/* treat no queued object as paused, should wake it up when events arrive */
-	list_del_init(&obj->list);
+	list_del_init(&data->list);
 }
 
 static void sched_tick_handler(void *param)
@@ -77,11 +85,11 @@ static void sched_tick_handler(void *param)
 
 	/* replenish retired sched_objects with slice_cycles, then move them to runqueue */
 	list_for_each_safe(pos, n, &rr_ctx->retired_queue) {
-		obj = list_entry(pos, struct sched_object, list);
+		obj = list_entry(pos, struct sched_object, data);
 		data = (struct sched_rr_data *)obj->data;
 		data->left_cycles = data->slice_cycles;
-		list_del_init(&obj->list);
-		list_add_tail(&obj->list, &rr_ctx->runqueue);
+		list_del_init(&data->list);
+		list_add_tail(&data->list, &rr_ctx->runqueue);
 	}
 
 	/* If no vCPU start scheduling, ignore this tick */
@@ -130,6 +138,7 @@ void sched_rr_init_data(struct sched_object *obj)
 
 	ASSERT(sizeof(struct sched_rr_data) < sizeof(obj->data), "sched_rr data size too large!");
 	data = (struct sched_rr_data *)obj->data;
+	INIT_LIST_HEAD(&data->list);
 	data->left_cycles = data->slice_cycles = CONFIG_SLICE_MS * CYCLES_PER_MS;
 }
 
@@ -166,16 +175,16 @@ static struct sched_object *sched_rr_pick_next(struct sched_context *ctx)
 	 * 3) At least take one idle sched object if we have no runnable ones after step 1) and 2)
 	 */
 	if (!list_empty(&rr_ctx->runqueue)) {
-		next = get_first_item(&rr_ctx->runqueue, struct sched_object, list);
+		next = get_first_item(&rr_ctx->runqueue, struct sched_object, data);
 		data = (struct sched_rr_data *)next->data;
 		data->last_cycles = now;
 	} else if (!list_empty(&rr_ctx->retired_queue)) {
-		next = get_first_item(&rr_ctx->retired_queue, struct sched_object, list);
+		next = get_first_item(&rr_ctx->retired_queue, struct sched_object, data);
 		data = (struct sched_rr_data *)next->data;
 		data->left_cycles = data->slice_cycles;
 		data->last_cycles = now;
-		list_del_init(&next->list);
-		list_add_tail(&next->list, &rr_ctx->runqueue);
+		list_del_init(&data->list);
+		list_add_tail(&data->list, &rr_ctx->runqueue);
 	} else {
 		next = &get_cpu_var(idle);
 	}
@@ -235,11 +244,11 @@ static void sched_rr_dump(struct sched_context *ctx)
 			ctx->current->name, rr_ctx->stats.tick_count);
 	pr_acrnlog("%12s%10s%15s(us)%15s", "object", "status", "total_runtime", "sched_count");
 	list_for_each(pos, &rr_ctx->runqueue) {
-		obj = list_entry(pos, struct sched_object, list);
+		obj = list_entry(pos, struct sched_object, data);
 		dump_sched_obj(obj);
 	}
 	list_for_each(pos, &rr_ctx->retired_queue) {
-		obj = list_entry(pos, struct sched_object, list);
+		obj = list_entry(pos, struct sched_object, data);
 		dump_sched_obj(obj);
 	}
 }
