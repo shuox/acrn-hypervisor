@@ -615,7 +615,7 @@ struct acrn_vcpu* get_ever_run_vcpu(uint16_t pcpu_id);
  *
  * @retval 0 vcpu created successfully, other values failed.
  */
-int32_t vcpu_create(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle);
+int32_t create_vcpu(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle);
 
 /**
  * @brief run into non-root mode based on vcpu setting
@@ -628,9 +628,9 @@ int32_t vcpu_create(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle);
  *
  * @retval 0 vcpu run successfully, other values failed.
  */
-int32_t vcpu_run(struct acrn_vcpu *vcpu);
+int32_t run_vcpu(struct acrn_vcpu *vcpu);
 
-int32_t vcpu_shutdown(struct acrn_vcpu *vcpu);
+int32_t shutdown_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief unmap the vcpu with pcpu and free its vlapic
@@ -642,7 +642,7 @@ int32_t vcpu_shutdown(struct acrn_vcpu *vcpu);
  *
  * @return None
  */
-void vcpu_offline(struct acrn_vcpu *vcpu);
+void offline_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief reset vcpu state and values
@@ -653,7 +653,7 @@ void vcpu_offline(struct acrn_vcpu *vcpu);
  *
  * @return None
  */
-void vcpu_reset(struct acrn_vcpu *vcpu);
+void reset_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief pause the vcpu and set new state
@@ -665,7 +665,7 @@ void vcpu_reset(struct acrn_vcpu *vcpu);
  *
  * @return None
  */
-void vcpu_pause(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
+void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
 
 /**
  * @brief resume the vcpu
@@ -676,7 +676,7 @@ void vcpu_pause(struct acrn_vcpu *vcpu, enum vcpu_state new_state);
  *
  * @return None
  */
-void vcpu_resume(struct acrn_vcpu *vcpu);
+void resume_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief set the vcpu to running state, then it will be scheculed.
@@ -687,7 +687,7 @@ void vcpu_resume(struct acrn_vcpu *vcpu);
  *
  * @return None
  */
-void vcpu_launch(struct acrn_vcpu *vcpu);
+void launch_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief poke the vcpu and let it handle pending events
@@ -698,7 +698,7 @@ void vcpu_launch(struct acrn_vcpu *vcpu);
  *
  * @return None
  */
-void vcpu_poke(struct acrn_vcpu *vcpu);
+void poke_vcpu(struct acrn_vcpu *vcpu);
 
 /**
  * @brief create a vcpu for the vm and mapped to the pcpu.
@@ -711,7 +711,7 @@ void vcpu_poke(struct acrn_vcpu *vcpu);
  * @retval 0 on success
  * @retval -EINVAL if the vCPU ID is invalid
  */
-int32_t vcpu_prepare(struct acrn_vm *vm, uint64_t vcpu_affinity);
+int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity);
 
 /**
  * @brief get physical destination cpu mask

@@ -38,7 +38,7 @@ void vcpu_thread(struct sched_object *obj)
 		ret = acrn_handle_pending_request(vcpu);
 		if (ret < 0) {
 			pr_fatal("vcpu handling pending request fail");
-			vcpu_pause(vcpu, VCPU_ZOMBIE);
+			pause_vcpu(vcpu, VCPU_ZOMBIE);
 			continue;
 		}
 
@@ -50,10 +50,10 @@ void vcpu_thread(struct sched_object *obj)
 		profiling_vmenter_handler(vcpu);
 
 		TRACE_2L(TRACE_VM_ENTER, 0UL, 0UL);
-		ret = vcpu_run(vcpu);
+		ret = run_vcpu(vcpu);
 		if (ret != 0) {
 			pr_fatal("vcpu resume failed");
-			vcpu_pause(vcpu, VCPU_ZOMBIE);
+			pause_vcpu(vcpu, VCPU_ZOMBIE);
 			continue;
 		}
 		basic_exit_reason = vcpu->arch.exit_reason & 0xFFFFU;

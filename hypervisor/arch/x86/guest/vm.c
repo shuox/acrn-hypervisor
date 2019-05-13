@@ -467,8 +467,8 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 		vm->state = VM_STATE_INVALID;
 
 		foreach_vcpu(i, vm, vcpu) {
-			vcpu_reset(vcpu);
-			vcpu_offline(vcpu);
+			reset_vcpu(vcpu);
+			offline_vcpu(vcpu);
 
 			if (is_lapic_pt(vm)) {
 				bitmap_set_nolock(pcpuid_from_vcpu(vcpu), &mask);
@@ -518,7 +518,7 @@ void start_vm(struct acrn_vm *vm)
 
 	/* Only start BSP (vid = 0) and let BSP start other APs */
 	vcpu = vcpu_from_vid(vm, 0U);
-	vcpu_launch(vcpu);
+	launch_vcpu(vcpu);
 }
 
 /**
@@ -532,7 +532,7 @@ int32_t reset_vm(struct acrn_vm *vm)
 
 	if (vm->state == VM_PAUSED) {
 		foreach_vcpu(i, vm, vcpu) {
-			vcpu_reset(vcpu);
+			reset_vcpu(vcpu);
 		}
 
 		if (is_sos_vm(vm)) {
@@ -564,14 +564,14 @@ void pause_vm(struct acrn_vm *vm)
 			/* Only when RTVM is powering off by itself, we can pause vcpu */
 			if (vm->state == VM_POWERING_OFF) {
 				foreach_vcpu(i, vm, vcpu) {
-					vcpu_pause(vcpu, VCPU_ZOMBIE);
+					pause_vcpu(vcpu, VCPU_ZOMBIE);
 				}
 
 				vm->state = VM_PAUSED;
 			}
 		} else {
 			foreach_vcpu(i, vm, vcpu) {
-				vcpu_pause(vcpu, VCPU_ZOMBIE);
+				pause_vcpu(vcpu, VCPU_ZOMBIE);
 			}
 
 			vm->state = VM_PAUSED;
@@ -588,7 +588,7 @@ void resume_vm(struct acrn_vm *vm)
 	struct acrn_vcpu *vcpu = NULL;
 
 	foreach_vcpu(i, vm, vcpu) {
-		vcpu_resume(vcpu);
+		resume_vcpu(vcpu);
 	}
 
 	vm->state = VM_STARTED;
@@ -614,7 +614,7 @@ void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
 
 	vm->state = VM_STARTED;
 
-	vcpu_reset(bsp);
+	reset_vcpu(bsp);
 
 	/* When SOS resume from S3, it will return to real mode
 	 * with entry set to wakeup_vec.
@@ -622,7 +622,7 @@ void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
 	set_ap_entry(bsp, wakeup_vec);
 
 	init_vmcs(bsp);
-	vcpu_launch(bsp);
+	launch_vcpu(bsp);
 }
 
 /**
@@ -644,7 +644,7 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 		}
 
 		for (i = 0U; i < vm_config->cpu_num; i++) {
-			err = vcpu_prepare(vm, vm_config->vcpu_sched_affinity[i]);
+			err = prepare_vcpu(vm, vm_config->vcpu_sched_affinity[i]);
 			if (err != 0) {
 				break;
 			}

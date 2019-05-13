@@ -63,9 +63,9 @@ int32_t hcall_sos_offline_cpu(struct acrn_vm *vm, uint64_t lapicid)
 				ret = -1;
 				break;
 			}
-			vcpu_pause(vcpu, VCPU_ZOMBIE);
-			vcpu_reset(vcpu);
-			vcpu_offline(vcpu);
+			pause_vcpu(vcpu, VCPU_ZOMBIE);
+			reset_vcpu(vcpu);
+			offline_vcpu(vcpu);
 		}
 	}
 
@@ -191,7 +191,7 @@ int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 
 	if (vm_config) {
 		for (i = 0; i < vm_config->cpu_num; i++) {
-			ret = vcpu_prepare(target_vm, vm_config->vcpu_sched_affinity[i]);
+			ret = prepare_vcpu(target_vm, vm_config->vcpu_sched_affinity[i]);
 			if (ret != 0) {
 				break;
 			}
@@ -542,7 +542,7 @@ int32_t hcall_notify_ioreq_finish(uint16_t vmid, uint16_t vcpu_id)
 			vcpu = vcpu_from_vid(target_vm, vcpu_id);
 			if (vcpu->state != VCPU_OFFLINE) {
 				if (!vcpu->vm->sw.is_completion_polling) {
-					vcpu_resume(vcpu);
+					resume_vcpu(vcpu);
 				}
 				ret = 0;
 			}
