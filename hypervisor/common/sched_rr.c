@@ -227,7 +227,7 @@ static void sched_rr_poke(struct sched_object *obj)
 static void dump_sched_obj(struct sched_object *obj)
 {
 	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
-	pr_acrnlog("%12s%5d%20lld%10lld%15lld", obj->name, obj->status,
+	pr_acrnlog("%12s%5d%20lld%15lld%15lld", obj->name, obj->status,
 			ticks_to_us(obj->stats.total_runtime),
 			ticks_to_us(data->left_cycles),
 			obj->stats.sched_count);
@@ -242,7 +242,8 @@ static void sched_rr_dump(struct sched_context *ctx)
 	pr_acrnlog("scheduler: sched_rr runtime: %lld(us)  current: %s  tick: %lld",
 			ticks_to_us(rdtsc() - rr_ctx->stats.start_time),
 			ctx->current->name, rr_ctx->stats.tick_count);
-	pr_acrnlog("%12s%10s%15s(us)%15s", "object", "status", "total_runtime", "sched_count");
+	pr_acrnlog("%12s%10s%15s(us)%10s(us)%15s", "object", "status", "total_runtime", "slice", "sched_count");
+	get_schedule_lock(ctx->pcpu_id);
 	list_for_each(pos, &rr_ctx->runqueue) {
 		obj = list_entry(pos, struct sched_object, data);
 		dump_sched_obj(obj);
@@ -251,6 +252,7 @@ static void sched_rr_dump(struct sched_context *ctx)
 		obj = list_entry(pos, struct sched_object, data);
 		dump_sched_obj(obj);
 	}
+	release_schedule_lock(ctx->pcpu_id);
 }
 
 struct acrn_scheduler sched_rr = {
