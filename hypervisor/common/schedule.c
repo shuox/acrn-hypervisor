@@ -207,6 +207,9 @@ void schedule(void)
 			next->switch_in(next);
 		}
 		pr_info("%s: prev[%s] next[%s]", __func__, prev->name, next->name);
+		TRACE_2L(TRACE_SCHED_SWITCH,
+				(uint64_t)(((prev->name[2]-'0') << 16) | (prev->name[8]-'0')),
+				(uint64_t)(((next->name[2]-'0') << 16) | (next->name[8]-'0')));
 		arch_switch_to(&prev->host_sp, &next->host_sp);
 	}
 }
