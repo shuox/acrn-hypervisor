@@ -806,12 +806,17 @@ out:
 	return status;
 }
 
+uint64_t sched_switch_start[4];
+uint64_t sched_switch_total[4];
+uint64_t sched_switch_count[4];
 void dump_sched(uint16_t pcpu_id)
 {
 	struct acrn_scheduler *scheduler = get_scheduler(pcpu_id);
 	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
 
 	pr_acrnlog("Dump scheduling statistics for pcpu%u", pcpu_id);
+	pr_acrnlog("Total schedule count: %lld  total_cycles[%lld]",
+			sched_switch_count[pcpu_id], sched_switch_total[pcpu_id]);
 	scheduler->dump(ctx);
 }
 

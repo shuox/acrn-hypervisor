@@ -177,6 +177,9 @@ uint16_t sched_get_pcpuid(const struct sched_object *obj)
 	return obj->pcpu_id;
 }
 
+extern uint64_t sched_switch_start[4];
+extern uint64_t sched_switch_total[4];
+extern uint64_t sched_switch_count[4];
 void schedule(void)
 {
 	uint16_t pcpu_id = get_pcpu_id();
@@ -185,6 +188,7 @@ void schedule(void)
 	struct sched_object *next = NULL;
 	struct sched_object *prev = ctx->current;
 
+	sched_switch_start[pcpu_id] = rdtsc();
 	get_schedule_lock(pcpu_id);
 	bitmap_clear_lock(NEED_RESCHEDULE, &ctx->flags);
 	next = SCHED_OP(scheduler, pick_next, ctx);
@@ -206,11 +210,12 @@ void schedule(void)
 		if ((next != NULL) && (next->switch_in != NULL)) {
 			next->switch_in(next);
 		}
-		pr_info("%s: prev[%s] next[%s]", __func__, prev->name, next->name);
 		TRACE_2L(TRACE_SCHED_SWITCH,
 				(uint64_t)(((prev->name[2]-'0') << 16) | (prev->name[8]-'0')),
 				(uint64_t)(((next->name[2]-'0') << 16) | (next->name[8]-'0')));
 		arch_switch_to(&prev->host_sp, &next->host_sp);
+		sched_switch_total[pcpu_id] += rdtsc() - sched_switch_start[pcpu_id];
+		sched_switch_count[pcpu_id] ++;
 	}
 }
 
