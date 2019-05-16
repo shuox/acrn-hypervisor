@@ -132,6 +132,31 @@ int sched_rr_init(struct sched_context *ctx)
 	return ret;
 }
 
+int sched_rr_suspend(struct sched_context *ctx)
+{
+	struct sched_rr_context *rr_ctx = &per_cpu(sched_rr_ctx, ctx->pcpu_id);
+
+	del_timer(&rr_ctx->tick_timer);
+	return 0;
+}
+
+int sched_rr_resume(struct sched_context *ctx)
+{
+	struct sched_rr_context *rr_ctx = &per_cpu(sched_rr_ctx, ctx->pcpu_id);
+	uint64_t tick_period = CONFIG_SLICE_MS * CYCLES_PER_MS / 2;
+	int ret = 0;
+
+	rr_ctx->stats.start_time = rdtsc();
+	initialize_timer(&rr_ctx->tick_timer, sched_tick_handler, ctx,
+			rdtsc() + tick_period, TICK_MODE_PERIODIC, tick_period);
+	if (add_timer(&rr_ctx->tick_timer) < 0) {
+		pr_err("Failed to add schedule tick timer!");
+		ret = -1;
+	}
+
+	return ret;
+}
+
 void sched_rr_init_data(struct sched_object *obj)
 {
 	struct sched_rr_data *data;
@@ -265,5 +290,7 @@ struct acrn_scheduler sched_rr = {
 	.sleep		= sched_rr_sleep,
 	.wake		= sched_rr_wake,
 	.poke		= sched_rr_poke,
+	.suspend	= sched_rr_suspend,
+	.resume		= sched_rr_resume,
 	.dump		= sched_rr_dump,
 };
