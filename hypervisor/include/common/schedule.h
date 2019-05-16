@@ -85,6 +85,10 @@ struct acrn_scheduler {
 	/* migrate schedule object from one context to another */
 	void	(*migrate)(struct sched_context *to, struct sched_context *from,
 			struct sched_object *obj);
+	/* suspend schedule */
+	int 	(*suspend)(struct sched_context *ctx);
+	/* resume schedule */
+	int 	(*resume)(struct sched_context *ctx);
 	/* deinit private data of scheduler */
 	void 	(*deinit_data)(struct sched_object *obj);
 	/* deinit scheduler */
@@ -132,6 +136,9 @@ uint16_t sched_get_pcpuid(const struct sched_object *obj);
 void schedule_on_pcpu(uint16_t pcpu_id, struct sched_object *obj);
 void make_reschedule_request(uint16_t pcpu_id, uint16_t delmode);
 bool need_reschedule(uint16_t pcpu_id);
+
+int suspend_sched(void);
+int resume_sched(void);
 
 void sleep(struct sched_object *obj);
 void wake(struct sched_object *obj);

@@ -106,6 +106,20 @@ void sched_init_data(struct sched_object *obj)
 	SCHED_OP(scheduler, init_data, obj);
 }
 
+int suspend_sched(void)
+{
+	struct sched_context *ctx = &per_cpu(sched_ctx, get_pcpu_id());
+
+	return SCHED_OP(ctx->scheduler, suspend, ctx);
+}
+
+int resume_sched(void)
+{
+	struct sched_context *ctx = &per_cpu(sched_ctx, get_pcpu_id());
+
+	return SCHED_OP(ctx->scheduler, resume, ctx);
+}
+
 uint16_t sched_pick_pcpu(uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity)
 {
 	uint16_t pcpu = 0;
