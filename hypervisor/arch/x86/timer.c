@@ -171,7 +171,9 @@ static void timer_softirq(uint16_t pcpu_id)
 
 			if (timer->mode == TICK_MODE_PERIODIC) {
 				/* update periodic timer fire tsc */
-				timer->fire_tsc += timer->period_in_cycle;
+				do {
+					timer->fire_tsc += timer->period_in_cycle;
+				} while (timer->fire_tsc <= current_tsc);
 				(void)local_add_timer(cpu_timer, timer);
 			}
 		} else {
