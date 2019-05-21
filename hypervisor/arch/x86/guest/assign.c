@@ -519,39 +519,44 @@ static void ptirq_handle_intx(struct acrn_vm *vm,
 
 void ptirq_softirq(uint16_t pcpu_id)
 {
-	struct acrn_vcpu *vcpu = (struct acrn_vcpu *)per_cpu(vcpu, pcpu_id);
-	struct acrn_vm *vm = vcpu->vm;
+	struct acrn_vm_config *vm_config;
+	struct acrn_vm *vm = NULL;
+	uint16_t idx;
 
-	while (1) {
-		struct ptirq_remapping_info *entry = ptirq_dequeue_softirq(vm);
+	foreach_vm(idx, vm) {
+		struct ptirq_remapping_info *entry;
 		struct ptirq_msi_info *msi;
 
-		if (entry == NULL) {
-			break;
-		}
-
-		msi = &entry->msi;
-
-		/* skip any inactive entry */
-		if (!is_entry_active(entry)) {
-			/* service next item */
+		/* skip vm who doesn't use this pcpu */
+		vm_config = get_vm_config(vm->vm_id);
+		if (!bitmap_test(pcpu_id, &vm_config->pcpu_bitmap)) {
 			continue;
 		}
+		entry = ptirq_dequeue_softirq(vm);
 
-		/* handle real request */
-		if (entry->intr_type == PTDEV_INTR_INTX) {
-			ptirq_handle_intx(vm, entry);
-		} else {
-			if (msi != NULL) {
-				/* TODO: msi destmode check required */
-				(void)vlapic_intr_msi(vm, msi->vmsi_addr.full, msi->vmsi_data.full);
-				dev_dbg(ACRN_DBG_PTIRQ, "dev-assign: irq=0x%x MSI VR: 0x%x-0x%x",
-					entry->allocated_pirq,
-					msi->vmsi_data.bits.vector,
-					irq_to_vector(entry->allocated_pirq));
-				dev_dbg(ACRN_DBG_PTIRQ, " vmsi_addr: 0x%llx vmsi_data: 0x%x",
-					msi->vmsi_addr.full,
-					msi->vmsi_data.full);
+		for ( ; entry != NULL; entry = ptirq_dequeue_softirq(vm)) {
+			/* skip any inactive entry */
+			if (!is_entry_active(entry)) {
+				/* service next item */
+				continue;
+			}
+			msi = &entry->msi;
+
+			/* handle real request */
+			if (entry->intr_type == PTDEV_INTR_INTX) {
+				ptirq_handle_intx(vm, entry);
+			} else {
+				if (msi != NULL) {
+					/* TODO: msi destmode check required */
+					(void)vlapic_intr_msi(vm, msi->vmsi_addr.full, msi->vmsi_data.full);
+					dev_dbg(ACRN_DBG_PTIRQ, "dev-assign: irq=0x%x MSI VR: 0x%x-0x%x",
+							entry->allocated_pirq,
+							msi->vmsi_data.bits.vector,
+							irq_to_vector(entry->allocated_pirq));
+					dev_dbg(ACRN_DBG_PTIRQ, " vmsi_addr: 0x%llx vmsi_data: 0x%x",
+							msi->vmsi_addr.full,
+							msi->vmsi_data.full);
+				}
 			}
 		}
 	}
