@@ -137,15 +137,15 @@ bool need_reschedule(uint16_t pcpu_id)
 
 static void prepare_switch(struct sched_object *prev, struct sched_object *next)
 {
-	if ((prev != NULL) && (prev->prepare_switch_out != NULL)) {
-		prev->prepare_switch_out(prev);
+	if ((prev != NULL) && (prev->switch_out != NULL)) {
+		prev->switch_out(prev);
 	}
 
 	/* update current object */
 	get_cpu_var(sched_ctx).curr_obj = next;
 
-	if ((next != NULL) && (next->prepare_switch_in != NULL)) {
-		next->prepare_switch_in(next);
+	if ((next != NULL) && (next->switch_in != NULL)) {
+		next->switch_in(next);
 	}
 }
 
@@ -179,7 +179,7 @@ void run_sched_thread(struct sched_object *obj)
 	ASSERT(false, "Shouldn't go here, invalid thread!");
 }
 
-void switch_to_idle(run_thread_t idle_thread)
+void switch_to_idle(sched_thread_t idle_thread)
 {
 	uint16_t pcpu_id = get_pcpu_id();
 	struct sched_object *idle = &per_cpu(idle, pcpu_id);
@@ -188,8 +188,8 @@ void switch_to_idle(run_thread_t idle_thread)
 	snprintf(idle_name, 16U, "idle%hu", pcpu_id);
 	(void)strncpy_s(idle->name, 16U, idle_name, 16U);
 	idle->thread = idle_thread;
-	idle->prepare_switch_out = NULL;
-	idle->prepare_switch_in = NULL;
+	idle->switch_out = NULL;
+	idle->switch_in = NULL;
 	get_cpu_var(sched_ctx).curr_obj = idle;
 
 	run_sched_thread(idle);

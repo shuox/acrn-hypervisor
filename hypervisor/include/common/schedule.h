@@ -14,15 +14,15 @@
 #define DEL_MODE_IPI		(2U)
 
 struct sched_object;
-typedef void (*run_thread_t)(struct sched_object *obj);
-typedef void (*prepare_switch_t)(struct sched_object *obj);
+typedef void (*sched_thread_t)(struct sched_object *obj);
+typedef void (*switch_t)(struct sched_object *obj);
 struct sched_object {
 	char name[16];
 	struct list_head run_list;
 	uint64_t host_sp;
-	run_thread_t thread;
-	prepare_switch_t prepare_switch_out;
-	prepare_switch_t prepare_switch_in;
+	sched_thread_t thread;
+	switch_t switch_out;
+	switch_t switch_in;
 };
 
 struct sched_context {
@@ -34,7 +34,7 @@ struct sched_context {
 };
 
 void init_scheduler(void);
-void switch_to_idle(run_thread_t idle_thread);
+void switch_to_idle(sched_thread_t idle_thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
 

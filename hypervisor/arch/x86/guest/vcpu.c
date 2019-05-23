@@ -717,8 +717,8 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
 	vcpu->sched_obj.thread = vcpu_thread;
 	vcpu->sched_obj.host_sp = build_stack_frame(vcpu);
-	vcpu->sched_obj.prepare_switch_out = context_switch_out;
-	vcpu->sched_obj.prepare_switch_in = context_switch_in;
+	vcpu->sched_obj.switch_out = context_switch_out;
+	vcpu->sched_obj.switch_in = context_switch_in;
 
 	return ret;
 }
