@@ -26,7 +26,6 @@ struct sched_object {
 };
 
 struct sched_context {
-	spinlock_t runqueue_lock;
 	struct list_head runqueue;
 	uint64_t flags;
 	struct sched_object *curr_obj;
