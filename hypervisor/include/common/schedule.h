@@ -18,7 +18,6 @@ typedef void (*sched_thread_t)(struct sched_object *obj);
 typedef void (*switch_t)(struct sched_object *obj);
 struct sched_object {
 	char name[16];
-	struct list_head run_list;
 	uint64_t host_sp;
 	sched_thread_t thread;
 	switch_t switch_out;
@@ -26,10 +25,11 @@ struct sched_object {
 };
 
 struct sched_context {
-	struct list_head runqueue;
 	uint64_t flags;
 	struct sched_object *curr_obj;
 	spinlock_t scheduler_lock;
+
+	struct sched_object *sched_obj;
 };
 
 void init_scheduler(void);
@@ -41,8 +41,8 @@ void set_pcpu_used(uint16_t pcpu_id);
 uint16_t allocate_pcpu(void);
 void free_pcpu(uint16_t pcpu_id);
 
-void add_to_cpu_runqueue(struct sched_object *obj, uint16_t pcpu_id);
-void remove_from_cpu_runqueue(struct sched_object *obj, uint16_t pcpu_id);
+void sched_insert(struct sched_object *obj, uint16_t pcpu_id);
+void sched_remove(struct sched_object *obj, uint16_t pcpu_id);
 
 void make_reschedule_request(uint16_t pcpu_id, uint16_t delmode);
 bool need_reschedule(uint16_t pcpu_id);

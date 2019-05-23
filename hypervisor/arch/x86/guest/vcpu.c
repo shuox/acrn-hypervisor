@@ -596,7 +596,7 @@ void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 	vcpu->state = new_state;
 
 	if (atomic_load32(&vcpu->running) == 1U) {
-		remove_from_cpu_runqueue(&vcpu->sched_obj, vcpu->pcpu_id);
+		sched_remove(&vcpu->sched_obj, vcpu->pcpu_id);
 
 		if (is_lapic_pt_enabled(vcpu)) {
 			make_reschedule_request(vcpu->pcpu_id, DEL_MODE_INIT);
@@ -611,7 +611,7 @@ void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 				asm_pause();
 		}
 	} else {
-		remove_from_cpu_runqueue(&vcpu->sched_obj, vcpu->pcpu_id);
+		sched_remove(&vcpu->sched_obj, vcpu->pcpu_id);
 		release_schedule_lock(vcpu->pcpu_id);
 	}
 }
@@ -624,7 +624,7 @@ void resume_vcpu(struct acrn_vcpu *vcpu)
 	vcpu->state = vcpu->prev_state;
 
 	if (vcpu->state == VCPU_RUNNING) {
-		add_to_cpu_runqueue(&vcpu->sched_obj, vcpu->pcpu_id);
+		sched_insert(&vcpu->sched_obj, vcpu->pcpu_id);
 		make_reschedule_request(vcpu->pcpu_id, DEL_MODE_IPI);
 	}
 	release_schedule_lock(vcpu->pcpu_id);
@@ -661,7 +661,7 @@ void schedule_vcpu(struct acrn_vcpu *vcpu)
 	pr_dbg("vcpu%hu scheduled", vcpu->vcpu_id);
 
 	get_schedule_lock(vcpu->pcpu_id);
-	add_to_cpu_runqueue(&vcpu->sched_obj, vcpu->pcpu_id);
+	sched_insert(&vcpu->sched_obj, vcpu->pcpu_id);
 	make_reschedule_request(vcpu->pcpu_id, DEL_MODE_IPI);
 	release_schedule_lock(vcpu->pcpu_id);
 }
@@ -712,7 +712,6 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, pcpu_id);
 	}
 
-	INIT_LIST_HEAD(&vcpu->sched_obj.run_list);
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
 	vcpu->sched_obj.thread = vcpu_thread;
