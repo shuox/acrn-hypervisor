@@ -69,8 +69,8 @@ static bool check_vm_uuid_collision(uint16_t vm_id)
 bool sanitize_vm_config(void)
 {
 	bool ret = true;
-	uint16_t vm_id;
-	uint64_t sos_pcpu_bitmap, pre_launch_pcpu_bitmap;
+	uint16_t vm_id, vcpu_id;
+	uint64_t sos_pcpu_bitmap, pre_launch_pcpu_bitmap, pcpu_bitmap;
 	struct acrn_vm_config *vm_config;
 
 	sos_pcpu_bitmap = (uint64_t)((((uint64_t)1U) << get_pcpu_nums()) - 1U);
@@ -82,6 +82,7 @@ bool sanitize_vm_config(void)
 	 * the order of PRE_LAUNCHED_VM first, and then SOS_VM.
 	 */
 	for (vm_id = 0U; vm_id < CONFIG_MAX_VM_NUM; vm_id++) {
+		pcpu_bitmap = 0U;
 		vm_config = get_vm_config(vm_id);
 		switch (vm_config->load_order) {
 		case PRE_LAUNCHED_VM:
@@ -105,10 +106,28 @@ bool sanitize_vm_config(void)
 			} else {
 				vm_config->pcpu_bitmap = sos_pcpu_bitmap;
 				vm_config->cpu_num = bitmap_weight(sos_pcpu_bitmap);
+				for (vcpu_id = 0; vcpu_id < vm_config->cpu_num; vcpu_id++) {
+					vm_config->vcpu_affinity[vcpu_id] = 1U << vcpu_id;
+				}
 			}
 			break;
 		case POST_LAUNCHED_VM:
-			/* Nothing to do here for a POST_LAUNCHED_VM, break directly. */
+			for (vcpu_id = 0; vcpu_id < vm_config->cpu_num; vcpu_id++) {
+				if (bitmap_weight(vm_config->vcpu_affinity[vcpu_id]) > 1) {
+					pr_err("%s: vm%u vcpu%u should have only one prefer affinity pcpu!", __func__, vm_id, vcpu_id);
+					ret = false;
+				}
+				pcpu_bitmap |= vm_config->vcpu_affinity[vcpu_id];
+			}
+			if (bitmap_weight(pcpu_bitmap) != vm_config->cpu_num) {
+				pr_err("%s: One VM cannot have multi vcpus share one pcpu!", __func__);
+				ret = false;
+			}
+			if (pcpu_bitmap == 0U || (pcpu_bitmap & pre_launch_pcpu_bitmap) != 0U) {
+				pr_err("%s: Post-launch VM has no pcpus or share pcpu with Pre-launch VM!", __func__);
+				ret = false;
+			}
+			vm_config->pcpu_bitmap = pcpu_bitmap;
 			break;
 		default:
 			/* Nothing to do for a unknown VM, break directly. */
