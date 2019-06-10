@@ -180,6 +180,18 @@ void vcpu_reset_eoi_exit_bitmaps(struct acrn_vcpu *vcpu)
 	vcpu_make_request(vcpu, ACRN_REQUEST_EOI_EXIT_BITMAP_UPDATE);
 }
 
+struct acrn_vcpu *get_running_vcpu(uint16_t pcpu_id)
+{
+	struct sched_object *curr = sched_get_current(pcpu_id);
+	struct acrn_vcpu *vcpu = NULL;
+
+	if (curr && !sched_is_idle(curr)) {
+		vcpu = list_entry(curr, struct acrn_vcpu, sched_obj);
+	}
+
+	return vcpu;
+}
+
 struct acrn_vcpu *get_ever_run_vcpu(uint16_t pcpu_id)
 {
 	return per_cpu(ever_run_vcpu, pcpu_id);
@@ -370,8 +382,6 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 	 * specific vcpu destroy on fly, this vcpu_id assignment
 	 * needs revise.
 	 */
-
-	per_cpu(vcpu, pcpu_id) = vcpu;
 
 	pr_info("Create VM%d-VCPU%d, Role: %s", vcpu->vm->vm_id, vcpu->vcpu_id,
 			is_vcpu_bsp(vcpu) ? "PRIMARY" : "SECONDARY");

@@ -29,13 +29,15 @@ struct sched_object {
 
 struct sched_context {
 	uint64_t flags;
-	struct sched_object *curr_obj;
+	struct sched_object *current;
 	spinlock_t scheduler_lock;
 
 	struct sched_object *sched_obj;
 };
 
+bool sched_is_idle(struct sched_object *obj);
 uint16_t sched_get_pcpuid(const struct sched_object *obj);
+struct sched_object *sched_get_current(uint16_t pcpu_id);
 
 void init_scheduler(void);
 void switch_to_idle(sched_thread_t idle_thread);
