@@ -73,8 +73,8 @@ void triple_fault_shutdown_vm(struct acrn_vm *vm)
 		/* Either SOS or pre-launched VMs */
 		pause_vm(vm);
 
-		per_cpu(shutdown_vm_id, vcpu->pcpu_id) = vm->vm_id;
-		make_shutdown_vm_request(vcpu->pcpu_id);
+		per_cpu(shutdown_vm_id, pcpuid_from_vcpu(vcpu)) = vm->vm_id;
+		make_shutdown_vm_request(pcpuid_from_vcpu(vcpu));
 	}
 }
 
@@ -260,7 +260,7 @@ void shutdown_vm_from_idle(uint16_t pcpu_id)
 	struct acrn_vm *vm = get_vm_from_vmid(per_cpu(shutdown_vm_id, pcpu_id));
 	const struct acrn_vcpu *vcpu = vcpu_from_vid(vm, BOOT_CPU_ID);
 
-	if (vcpu->pcpu_id == pcpu_id) {
+	if (pcpuid_from_vcpu(vcpu) == pcpu_id) {
 		(void)shutdown_vm(vm);
 	}
 }

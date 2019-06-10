@@ -355,7 +355,6 @@ struct acrn_vcpu {
 
 	/* Architecture specific definitions for this VCPU */
 	struct acrn_vcpu_arch arch;
-	uint16_t pcpu_id;	/* Physical CPU ID of this VCPU */
 	uint16_t vcpu_id;	/* virtual identifier for VCPU */
 	struct acrn_vm *vm;		/* Reference to the VM this VCPU belongs to */
 
@@ -397,6 +396,7 @@ vcpu_vlapic(struct acrn_vcpu *vcpu)
 	return &(vcpu->arch.vlapic);
 }
 
+uint16_t pcpuid_from_vcpu(const struct acrn_vcpu *vcpu);
 void default_idle(__unused struct sched_object *obj);
 void vcpu_thread(struct sched_object *obj);
 

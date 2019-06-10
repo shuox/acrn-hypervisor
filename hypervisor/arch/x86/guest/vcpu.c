@@ -329,10 +329,10 @@ void set_ap_entry(struct acrn_vcpu *vcpu, uint64_t entry)
  * if
  *     SOS_VM_CPUS[2] = {0, 2} , VM1_CPUS[2] = {3, 1};
  * then
- *     for physical CPU 0 : vcpu->pcpu_id = 0, vcpu->vcpu_id = 0, vmid = 0;
- *     for physical CPU 2 : vcpu->pcpu_id = 2, vcpu->vcpu_id = 1, vmid = 0;
- *     for physical CPU 3 : vcpu->pcpu_id = 3, vcpu->vcpu_id = 0, vmid = 1;
- *     for physical CPU 1 : vcpu->pcpu_id = 1, vcpu->vcpu_id = 1, vmid = 1;
+ *     for physical CPU 0 : vcpu->obj->pcpu_id = 0, vcpu->vcpu_id = 0, vmid = 0;
+ *     for physical CPU 2 : vcpu->obj->pcpu_id = 2, vcpu->vcpu_id = 1, vmid = 0;
+ *     for physical CPU 3 : vcpu->obj->pcpu_id = 3, vcpu->vcpu_id = 0, vmid = 1;
+ *     for physical CPU 1 : vcpu->obj->pcpu_id = 1, vcpu->vcpu_id = 1, vmid = 1;
  *
  ***********************************************************************/
 int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
@@ -358,7 +358,6 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 
 	/* Initialize CPU ID for this VCPU */
 	vcpu->vcpu_id = vcpu_id;
-	vcpu->pcpu_id = pcpu_id;
 	per_cpu(ever_run_vcpu, pcpu_id) = vcpu;
 
 	/* Initialize the parent VM reference */
@@ -374,8 +373,7 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 
 	per_cpu(vcpu, pcpu_id) = vcpu;
 
-	pr_info("PCPU%d is working as VM%d VCPU%d, Role: %s",
-			vcpu->pcpu_id, vcpu->vm->vm_id, vcpu->vcpu_id,
+	pr_info("Create VM%d-VCPU%d, Role: %s", vcpu->vm->vm_id, vcpu->vcpu_id,
 			is_vcpu_bsp(vcpu) ? "PRIMARY" : "SECONDARY");
 
 	/*
@@ -537,9 +535,11 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
  */
 void offline_vcpu(struct acrn_vcpu *vcpu)
 {
+	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
+
 	vlapic_free(vcpu);
-	per_cpu(ever_run_vcpu, vcpu->pcpu_id) = NULL;
-	free_pcpu(vcpu->pcpu_id);
+	per_cpu(ever_run_vcpu, pcpu_id) = NULL;
+	free_pcpu(pcpu_id);
 	vcpu->state = VCPU_OFFLINE;
 }
 
@@ -579,55 +579,57 @@ void reset_vcpu(struct acrn_vcpu *vcpu)
 	vlapic = vcpu_vlapic(vcpu);
 	vlapic_reset(vlapic);
 
-	sbuf_reset(vcpu->pcpu_id);
+	sbuf_reset(pcpuid_from_vcpu(vcpu));
 
 	reset_vcpu_regs(vcpu);
 }
 
 void pause_vcpu(struct acrn_vcpu *vcpu, enum vcpu_state new_state)
 {
-	uint16_t pcpu_id = get_pcpu_id();
+	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
 	pr_dbg("vcpu%hu paused, new state: %d",
 		vcpu->vcpu_id, new_state);
 
-	get_schedule_lock(vcpu->pcpu_id);
+	get_schedule_lock(pcpu_id);
 	vcpu->prev_state = vcpu->state;
 	vcpu->state = new_state;
 
 	if (atomic_load32(&vcpu->running) == 1U) {
-		sched_remove(&vcpu->sched_obj, vcpu->pcpu_id);
+		sched_remove(&vcpu->sched_obj, pcpu_id);
 
 		if (is_lapic_pt_enabled(vcpu)) {
-			make_reschedule_request(vcpu->pcpu_id, DEL_MODE_INIT);
+			make_reschedule_request(pcpu_id, DEL_MODE_INIT);
 		} else {
-			make_reschedule_request(vcpu->pcpu_id, DEL_MODE_IPI);
+			make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 		}
 
-		release_schedule_lock(vcpu->pcpu_id);
+		release_schedule_lock(pcpu_id);
 
-		if (vcpu->pcpu_id != pcpu_id) {
+		if (pcpu_id != get_pcpu_id()) {
 			while (atomic_load32(&vcpu->running) == 1U)
 				asm_pause();
 		}
 	} else {
-		sched_remove(&vcpu->sched_obj, vcpu->pcpu_id);
-		release_schedule_lock(vcpu->pcpu_id);
+		sched_remove(&vcpu->sched_obj, pcpu_id);
+		release_schedule_lock(pcpu_id);
 	}
 }
 
 void resume_vcpu(struct acrn_vcpu *vcpu)
 {
+	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
+
 	pr_dbg("vcpu%hu resumed", vcpu->vcpu_id);
 
-	get_schedule_lock(vcpu->pcpu_id);
+	get_schedule_lock(pcpu_id);
 	vcpu->state = vcpu->prev_state;
 
 	if (vcpu->state == VCPU_RUNNING) {
-		sched_insert(&vcpu->sched_obj, vcpu->pcpu_id);
-		make_reschedule_request(vcpu->pcpu_id, DEL_MODE_IPI);
+		sched_insert(&vcpu->sched_obj, pcpu_id);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 	}
-	release_schedule_lock(vcpu->pcpu_id);
+	release_schedule_lock(pcpu_id);
 }
 
 static void context_switch_out(struct sched_object *prev)
@@ -657,13 +659,15 @@ static void context_switch_in(struct sched_object *next)
 
 void schedule_vcpu(struct acrn_vcpu *vcpu)
 {
-	vcpu->state = VCPU_RUNNING;
-	pr_dbg("vcpu%hu scheduled", vcpu->vcpu_id);
+	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
-	get_schedule_lock(vcpu->pcpu_id);
-	sched_insert(&vcpu->sched_obj, vcpu->pcpu_id);
-	make_reschedule_request(vcpu->pcpu_id, DEL_MODE_IPI);
-	release_schedule_lock(vcpu->pcpu_id);
+	vcpu->state = VCPU_RUNNING;
+	pr_dbg("vcpu%hu scheduled on pcpu%hu", vcpu->vcpu_id, pcpu_id);
+
+	get_schedule_lock(pcpu_id);
+	sched_insert(&vcpu->sched_obj, pcpu_id);
+	make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+	release_schedule_lock(pcpu_id);
 }
 
 static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
@@ -714,12 +718,22 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 
 	snprintf(thread_name, 16U, "vm%hu:vcpu%hu", vm->vm_id, vcpu->vcpu_id);
 	(void)strncpy_s(vcpu->sched_obj.name, 16U, thread_name, 16U);
+	vcpu->sched_obj.ctx = &per_cpu(sched_ctx, pcpu_id);
 	vcpu->sched_obj.thread = vcpu_thread;
+	vcpu->sched_obj.pcpu_id = pcpu_id;
 	vcpu->sched_obj.host_sp = build_stack_frame(vcpu);
 	vcpu->sched_obj.switch_out = context_switch_out;
 	vcpu->sched_obj.switch_in = context_switch_in;
 
 	return ret;
+}
+
+/**
+ * @pre vcpu != NULL
+ */
+uint16_t pcpuid_from_vcpu(const struct acrn_vcpu *vcpu)
+{
+	return sched_get_pcpuid(&vcpu->sched_obj);
 }
 
 uint64_t vcpumask2pcpumask(struct acrn_vm *vm, uint64_t vdmask)
@@ -731,7 +745,7 @@ uint64_t vcpumask2pcpumask(struct acrn_vm *vm, uint64_t vdmask)
 	for (vcpu_id = 0U; vcpu_id < vm->hw.created_vcpus; vcpu_id++) {
 		if ((vdmask & (1UL << vcpu_id)) != 0UL) {
 			vcpu = vcpu_from_vid(vm, vcpu_id);
-			bitmap_set_nolock(vcpu->pcpu_id, &dmask);
+			bitmap_set_nolock(pcpuid_from_vcpu(vcpu), &dmask);
 		}
 	}
 

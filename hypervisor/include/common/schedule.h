@@ -18,8 +18,11 @@ typedef void (*sched_thread_t)(struct sched_object *obj);
 typedef void (*switch_t)(struct sched_object *obj);
 struct sched_object {
 	char name[16];
-	uint64_t host_sp;
+	uint16_t pcpu_id;
+	struct sched_context *ctx;
 	sched_thread_t thread;
+
+	uint64_t host_sp;
 	switch_t switch_out;
 	switch_t switch_in;
 };
@@ -31,6 +34,8 @@ struct sched_context {
 
 	struct sched_object *sched_obj;
 };
+
+uint16_t sched_get_pcpuid(const struct sched_object *obj);
 
 void init_scheduler(void);
 void switch_to_idle(sched_thread_t idle_thread);

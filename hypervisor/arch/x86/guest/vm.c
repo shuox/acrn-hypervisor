@@ -562,8 +562,8 @@ int32_t shutdown_vm(struct acrn_vm *vm)
 			offline_vcpu(vcpu);
 
 			if (is_lapic_pt_enabled(vcpu)) {
-				bitmap_set_nolock(vcpu->pcpu_id, &mask);
-				make_pcpu_offline(vcpu->pcpu_id);
+				bitmap_set_nolock(pcpuid_from_vcpu(vcpu), &mask);
+				make_pcpu_offline(pcpuid_from_vcpu(vcpu));
 			}
 		}
 
