@@ -336,23 +336,11 @@ void set_ap_entry(struct acrn_vcpu *vcpu, uint64_t entry)
  *
  *  @pre vm != NULL && rtn_vcpu_handle != NULL
  *
- * vcpu_id/pcpu_id mapping table:
- *
- * if
- *     SOS_VM_CPUS[2] = {0, 2} , VM1_CPUS[2] = {3, 1};
- * then
- *     for physical CPU 0 : vcpu->obj->pcpu_id = 0, vcpu->vcpu_id = 0, vmid = 0;
- *     for physical CPU 2 : vcpu->obj->pcpu_id = 2, vcpu->vcpu_id = 1, vmid = 0;
- *     for physical CPU 3 : vcpu->obj->pcpu_id = 3, vcpu->vcpu_id = 0, vmid = 1;
- *     for physical CPU 1 : vcpu->obj->pcpu_id = 1, vcpu->vcpu_id = 1, vmid = 1;
- *
  ***********************************************************************/
-int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
+int32_t create_vcpu(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle)
 {
 	struct acrn_vcpu *vcpu;
 	uint16_t vcpu_id;
-
-	pr_info("Creating VCPU working on PCPU%hu", pcpu_id);
 
 	/*
 	 * vcpu->vcpu_id = vm->hw.created_vcpus;
@@ -370,7 +358,6 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 
 	/* Initialize CPU ID for this VCPU */
 	vcpu->vcpu_id = vcpu_id;
-	per_cpu(ever_run_vcpu, pcpu_id) = vcpu;
 
 	/* Initialize the parent VM reference */
 	vcpu->vm = vm;
@@ -549,7 +536,6 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 
 	vlapic_free(vcpu);
 	per_cpu(ever_run_vcpu, pcpu_id) = NULL;
-	free_pcpu(pcpu_id);
 	vcpu->state = VCPU_OFFLINE;
 }
 
@@ -711,25 +697,33 @@ static uint64_t build_stack_frame(struct acrn_vcpu *vcpu)
 	return (uint64_t)sp;
 }
 
-/* help function for vcpu create */
-int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
+/**
+ * @pre vm != NULL
+ *
+ * help function for vcpu create
+ */
+int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity)
 {
 	int32_t ret = 0;
 	struct acrn_vcpu *vcpu = NULL;
 	char thread_name[16];
 	uint64_t orig_val, final_val;
 	struct acrn_vm_config *conf;
+	uint16_t pcpu_id;
 
-	ret = create_vcpu(pcpu_id, vm, &vcpu);
+	ret = create_vcpu(vm, &vcpu);
 	if (ret != 0) {
 		return ret;
 	}
 
-	set_pcpu_used(pcpu_id);
+	conf = get_vm_config(vm->vm_id);
+	pcpu_id = sched_pick_pcpu(conf->pcpu_bitmap, vcpu_affinity);
+	if (pcpu_id == INVALID_CPU_ID) {
+		return -1;
+	}
 
 	/* Update CLOS for this CPU */
 	if (cat_cap_info.enabled) {
-		conf = get_vm_config(vm->vm_id);
 		orig_val = msr_read(MSR_IA32_PQR_ASSOC);
 		final_val = (orig_val & 0xffffffffUL) | (((uint64_t)conf->clos) << 32UL);
 		msr_write_pcpu(MSR_IA32_PQR_ASSOC, final_val, pcpu_id);

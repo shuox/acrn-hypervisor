@@ -44,9 +44,7 @@ void switch_to_idle(sched_thread_t idle_thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
 
-void set_pcpu_used(uint16_t pcpu_id);
-uint16_t allocate_pcpu(void);
-void free_pcpu(uint16_t pcpu_id);
+uint16_t sched_pick_pcpu(uint64_t pcpu_bitmap, uint64_t vcpu_sched_affinity);
 
 void sched_insert(struct sched_object *obj, uint16_t pcpu_id);
 void sched_remove(struct sched_object *obj, uint16_t pcpu_id);

@@ -190,12 +190,10 @@ int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 	}
 
 	if (ret == 0) {
-		for (i = 0U; i < get_pcpu_nums(); i++) {
-			if (bitmap_test(i, &vm_config->pcpu_bitmap)) {
-				ret = prepare_vcpu(target_vm, i);
-				if (ret != 0) {
-					break;
-				}
+		for (i = 0U; i < vm_config->cpu_num; i++) {
+			ret = prepare_vcpu(target_vm, vm_config->vcpu_affinity[i]);
+			if (ret != 0) {
+				break;
 			}
 		}
 	}

@@ -657,13 +657,12 @@ struct acrn_vcpu* get_ever_run_vcpu(uint16_t pcpu_id);
  * Creates/allocates a vCPU instance, with initialization for its vcpu_id,
  * vpid, vmcs, vlapic, etc. It sets the init vCPU state to VCPU_INIT
  *
- * @param[in] pcpu_id created vcpu will run on this pcpu
  * @param[in] vm pointer to vm data structure, this vcpu will owned by this vm.
  * @param[out] rtn_vcpu_handle pointer to the created vcpu
  *
  * @retval 0 vcpu created successfully, other values failed.
  */
-int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle);
+int32_t create_vcpu(struct acrn_vm *vm, struct acrn_vcpu **rtn_vcpu_handle);
 
 /**
  * @brief run into non-root mode based on vcpu setting
@@ -741,12 +740,12 @@ void schedule_vcpu(struct acrn_vcpu *vcpu);
  * Create a vcpu for the vm, and mapped to the pcpu.
  *
  * @param[inout] vm pointer to vm data structure
- * @param[in] pcpu_id which the vcpu will be mapped
+ * @param[in] vcpu_affinity the vcpu preferred pcpu bitmap
  *
  * @retval 0 on success
  * @retval -EINVAL if the vCPU ID is invalid
  */
-int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id);
+int32_t prepare_vcpu(struct acrn_vm *vm, uint64_t vcpu_affinity);
 
 /**
  * @brief get physical destination cpu mask

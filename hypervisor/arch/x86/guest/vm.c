@@ -728,12 +728,10 @@ void prepare_vm(uint16_t vm_id, struct acrn_vm_config *vm_config)
 	err = create_vm(vm_id, vm_config, &vm);
 
 	if (err == 0) {
-		for (i = 0U; i < get_pcpu_nums(); i++) {
-			if (bitmap_test(i, &vm_config->pcpu_bitmap)) {
-				err = prepare_vcpu(vm, i);
-				if (err != 0) {
-					break;
-				}
+		for (i = 0U; i < vm_config->cpu_num; i++) {
+			err = prepare_vcpu(vm, vm_config->vcpu_affinity[i]);
+			if (err != 0) {
+				break;
 			}
 		}
 	}

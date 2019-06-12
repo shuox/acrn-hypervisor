@@ -13,8 +13,6 @@
 #include <schedule.h>
 #include <sprintf.h>
 
-static uint64_t pcpu_used_bitmap;
-
 bool sched_is_idle(struct sched_object *obj)
 {
 	uint16_t pcpu_id = obj->pcpu_id;
@@ -56,30 +54,16 @@ void release_schedule_lock(uint16_t pcpu_id)
 	spinlock_release(&ctx->scheduler_lock);
 }
 
-uint16_t allocate_pcpu(void)
+uint16_t sched_pick_pcpu(uint64_t cpus_bitmap, uint64_t vcpu_sched_affinity)
 {
-	uint16_t i;
-	uint16_t ret = INVALID_CPU_ID;
-	uint16_t pcpu_nums = get_pcpu_nums();
+	uint16_t pcpu = 0;
 
-	for (i = 0U; i < pcpu_nums; i++) {
-		if (bitmap_test_and_set_lock(i, &pcpu_used_bitmap) == 0) {
-			ret = i;
-			break;
-		}
+	pcpu = ffs64(cpus_bitmap & vcpu_sched_affinity);
+	if (pcpu == INVALID_BIT_INDEX) {
+		pcpu = INVALID_CPU_ID;
 	}
 
-	return ret;
-}
-
-void set_pcpu_used(uint16_t pcpu_id)
-{
-	bitmap_set_lock(pcpu_id, &pcpu_used_bitmap);
-}
-
-void free_pcpu(uint16_t pcpu_id)
-{
-	bitmap_clear_lock(pcpu_id, &pcpu_used_bitmap);
+	return pcpu;
 }
 
 void sched_insert(struct sched_object *obj, uint16_t pcpu_id)
