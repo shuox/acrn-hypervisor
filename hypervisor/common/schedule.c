@@ -27,19 +27,13 @@ uint16_t sched_get_pcpuid(const struct sched_object *obj)
 	return obj->pcpu_id;
 }
 
-void init_scheduler(void)
+void init_sched(uint16_t pcpu_id)
 {
-	struct sched_context *ctx;
-	uint32_t i;
-	uint16_t pcpu_nums = get_pcpu_nums();
+	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
 
-	for (i = 0U; i < pcpu_nums; i++) {
-		ctx = &per_cpu(sched_ctx, i);
-
-		spinlock_init(&ctx->scheduler_lock);
-		ctx->flags = 0UL;
-		ctx->current = NULL;
-	}
+	spinlock_init(&ctx->scheduler_lock);
+	ctx->flags = 0UL;
+	ctx->current = NULL;
 }
 
 void get_schedule_lock(uint16_t pcpu_id)

@@ -39,7 +39,7 @@ bool sched_is_idle(struct sched_object *obj);
 uint16_t sched_get_pcpuid(const struct sched_object *obj);
 struct sched_object *sched_get_current(uint16_t pcpu_id);
 
-void init_scheduler(void);
+void init_sched(uint16_t pcpu_id);
 void switch_to_idle(sched_thread_t idle_thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
