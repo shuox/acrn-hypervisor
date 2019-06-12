@@ -76,7 +76,7 @@ static struct thread_object *get_next_sched_obj(const struct sched_control *ctl)
 struct thread_object *sched_get_current(uint16_t pcpu_id)
 {
 	struct sched_control *ctl = &per_cpu(sched_ctl, pcpu_id);
-	return ctl->current;
+	return ctl->curr_obj;
 }
 
 /**
