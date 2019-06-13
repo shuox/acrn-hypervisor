@@ -19,6 +19,26 @@ bool sched_is_idle(struct sched_object *obj)
 	return (obj == &per_cpu(idle, pcpu_id));
 }
 
+static inline bool is_blocked(struct sched_object *obj)
+{
+	return obj->status == SCHED_STS_BLOCKED;
+}
+
+static inline bool is_runnable(struct sched_object *obj)
+{
+	return obj->status == SCHED_STS_RUNNABLE;
+}
+
+static inline bool is_running(struct sched_object *obj)
+{
+	return obj->status == SCHED_STS_RUNNING;
+}
+
+static inline void sched_set_status(struct sched_object *obj, uint16_t status)
+{
+	obj->status = status;
+}
+
 /**
  * @pre obj != NULL
  */
@@ -139,6 +159,11 @@ void schedule(void)
 	get_schedule_lock(pcpu_id);
 	next = get_next_sched_obj(ctx);
 	bitmap_clear_nolock(NEED_RESCHEDULE, &ctx->flags);
+	/* Don't change prev object's status if it's not running */
+	if (is_running(prev)) {
+		sched_set_status(prev, SCHED_STS_RUNNABLE);
+	}
+	sched_set_status(next, SCHED_STS_RUNNING);
 
 	if (prev == next) {
 		release_schedule_lock(pcpu_id);
@@ -172,6 +197,7 @@ void switch_to_idle(sched_thread_t idle_thread)
 	idle->switch_out = NULL;
 	idle->switch_in = NULL;
 	get_cpu_var(sched_ctx).current = idle;
+	sched_set_status(idle, SCHED_STS_RUNNING);
 
 	run_sched_thread(idle);
 }
