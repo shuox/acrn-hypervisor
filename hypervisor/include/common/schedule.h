@@ -20,6 +20,11 @@ enum sched_object_state {
 	SCHED_STS_BLOCKED
 };
 
+enum sched_notify_mode {
+	SCHED_NOTIFY_INIT = DEL_MODE_INIT,
+	SCHED_NOTIFY_IPI = DEL_MODE_IPI
+};
+
 struct sched_object;
 typedef void (*sched_thread_t)(struct sched_object *obj);
 typedef void (*switch_t)(struct sched_object *obj);
@@ -29,6 +34,7 @@ struct sched_object {
 	struct sched_context *ctx;
 	sched_thread_t thread;
 	volatile enum sched_object_state status;
+	enum sched_notify_mode notify_mode;
 
 	uint64_t host_sp;
 	switch_t switch_out;
@@ -60,6 +66,8 @@ void sched_remove(struct sched_object *obj, uint16_t pcpu_id);
 void make_reschedule_request(uint16_t pcpu_id, uint16_t delmode);
 bool need_reschedule(uint16_t pcpu_id);
 
+void sleep(struct sched_object *obj);
+void wake(struct sched_object *obj);
 void schedule(void);
 void run_sched_thread(struct sched_object *obj);
 

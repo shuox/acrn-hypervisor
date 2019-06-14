@@ -175,6 +175,36 @@ void schedule(void)
 	}
 }
 
+void sleep(struct sched_object *obj)
+{
+	uint16_t pcpu_id = obj->pcpu_id;
+
+	get_schedule_lock(pcpu_id);
+	sched_remove(obj, pcpu_id);
+	if (obj->notify_mode == SCHED_NOTIFY_INIT) {
+		make_reschedule_request(pcpu_id, DEL_MODE_INIT);
+	} else {
+		if (is_running(obj)) {
+			make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+		}
+	}
+	sched_set_status(obj, SCHED_STS_BLOCKED);
+	release_schedule_lock(pcpu_id);
+}
+
+void wake(struct sched_object *obj)
+{
+	uint16_t pcpu_id = obj->pcpu_id;
+
+	get_schedule_lock(pcpu_id);
+	if (is_blocked(obj)) {
+		sched_insert(obj, pcpu_id);
+		sched_set_status(obj, SCHED_STS_RUNNABLE);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+	}
+	release_schedule_lock(pcpu_id);
+}
+
 void run_sched_thread(struct sched_object *obj)
 {
 	if (obj->thread != NULL) {
