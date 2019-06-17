@@ -1214,7 +1214,7 @@ vlapic_process_init_sipi(struct acrn_vcpu* target_vcpu, uint32_t mode, uint32_t 
 					target_vcpu->vcpu_id,
 					target_vcpu->vm->vm_id);
 				set_ap_entry(target_vcpu, (icr_low & APIC_VECTOR_MASK) << 12U);
-				schedule_vcpu(target_vcpu);
+				launch_vcpu(target_vcpu);
 			}
 		}
 	} else {

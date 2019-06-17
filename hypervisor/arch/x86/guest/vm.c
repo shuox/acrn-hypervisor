@@ -611,7 +611,7 @@ void start_vm(struct acrn_vm *vm)
 
 	/* Only start BSP (vid = 0) and let BSP start other APs */
 	vcpu = vcpu_from_vid(vm, 0U);
-	schedule_vcpu(vcpu);
+	launch_vcpu(vcpu);
 }
 
 /**
@@ -711,7 +711,7 @@ void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
 	set_ap_entry(bsp, wakeup_vec);
 
 	init_vmcs(bsp);
-	schedule_vcpu(bsp);
+	launch_vcpu(bsp);
 }
 
 /**
