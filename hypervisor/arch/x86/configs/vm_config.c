@@ -7,6 +7,7 @@
 #include <bits.h>
 #include <vm_config.h>
 #include <logmsg.h>
+#include <schedule.h>
 #include <cat.h>
 #include <pgtable.h>
 
@@ -117,6 +118,7 @@ bool sanitize_vm_config(void)
 		case SOS_VM:
 			/* Deduct pcpus of PRE_LAUNCHED_VMs */
 			sos_pcpu_bitmap ^= pre_launch_pcpu_bitmap;
+			vm_pcpu_bitmap = sos_pcpu_bitmap;
 			if ((sos_pcpu_bitmap == 0U) || ((vm_config->guest_flags & GUEST_FLAG_LAPIC_PASSTHROUGH) != 0U)) {
 				ret = false;
 			} else {
@@ -138,6 +140,8 @@ bool sanitize_vm_config(void)
 			/* Nothing to do for a unknown VM, break directly. */
 			break;
 		}
+
+		ret &= init_pcpu_schedulers(vm_pcpu_bitmap, vm_config->scheduler);
 
 		if ((vm_config->guest_flags & GUEST_FLAG_CLOS_REQUIRED) != 0U) {
 			if (cat_cap_info.support && (vm_config->clos <= cat_cap_info.clos_max)) {

@@ -7,11 +7,16 @@
 #include <rtl.h>
 #include <list.h>
 #include <bits.h>
+#include <errno.h>
 #include <cpu.h>
 #include <per_cpu.h>
 #include <lapic.h>
 #include <schedule.h>
 #include <sprintf.h>
+
+static struct acrn_scheduler *schedulers[SCHEDULER_MAX_NUMBER] = {
+	&sched_noop,
+};
 
 bool is_idle_thread(struct thread_object *obj)
 {
@@ -51,10 +56,58 @@ void release_schedule_lock(uint16_t pcpu_id, uint64_t rflag)
 	spinlock_irqrestore_release(&ctl->scheduler_lock, rflag);
 }
 
+static void set_scheduler(uint16_t pcpu_id, struct acrn_scheduler *scheduler)
+{
+	struct sched_control *ctl = &per_cpu(sched_ctl, pcpu_id);
+	ctl->scheduler = scheduler;
+}
+
 static struct acrn_scheduler *get_scheduler(uint16_t pcpu_id)
 {
 	struct sched_control *ctl = &per_cpu(sched_ctl, pcpu_id);
 	return ctl->scheduler;
+}
+
+static struct acrn_scheduler *find_scheduler_by_name(const char *name)
+{
+	unsigned int i;
+	struct acrn_scheduler *scheduler = NULL;
+
+	for (i = 0U; i < SCHEDULER_MAX_NUMBER && schedulers[i] != NULL; i++) {
+		if (strncmp(name, schedulers[i]->name, sizeof(schedulers[i]->name)) == 0) {
+			scheduler = schedulers[i];
+			break;
+		}
+	}
+
+	return scheduler;
+}
+
+bool init_pcpu_schedulers(uint64_t pcpu_bitmap, const char *scheduler_name)
+{
+	bool ret = true;
+	uint16_t pcpu_id;
+	struct acrn_scheduler *curr_scheduler, *conf_scheduler;
+
+	/* verify & set scheduler for all pcpu of this VM */
+	pcpu_id = ffs64(pcpu_bitmap);
+	while (pcpu_id != INVALID_BIT_INDEX) {
+		curr_scheduler = get_scheduler(pcpu_id);
+		conf_scheduler = find_scheduler_by_name(scheduler_name);
+		if (curr_scheduler && conf_scheduler && curr_scheduler != conf_scheduler) {
+			pr_warn("%s: detect scheduler conflict on pcpu%d!\n", __func__, pcpu_id);
+			ret = false;
+			break;
+		}
+		if (conf_scheduler) {
+			pr_info("%s: Set pcpu%d scheduler: %s", __func__, pcpu_id, conf_scheduler->name);
+			set_scheduler(pcpu_id, conf_scheduler);
+		}
+		bitmap_clear_nolock(pcpu_id, &pcpu_bitmap);
+		pcpu_id = ffs64(pcpu_bitmap);
+	}
+
+	return ret;
 }
 
 /**
@@ -73,7 +126,9 @@ void init_sched(uint16_t pcpu_id)
 	ctl->flags = 0UL;
 	ctl->curr_obj = NULL;
 	ctl->pcpu_id = pcpu_id;
-	ctl->scheduler = &sched_noop;
+	if (ctl->scheduler == NULL) {
+		ctl->scheduler = &sched_noop;
+	}
 	if (ctl->scheduler->init != NULL) {
 		ctl->scheduler->init(ctl);
 	}

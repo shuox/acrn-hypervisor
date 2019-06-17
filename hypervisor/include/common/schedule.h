@@ -92,6 +92,8 @@ void switch_to_idle(thread_entry_t idle_thread);
 void get_schedule_lock(uint16_t pcpu_id, uint64_t *rflag);
 void release_schedule_lock(uint16_t pcpu_id, uint64_t rflag);
 
+bool init_pcpu_schedulers(uint64_t pcpu_bitmap, const char *schedule_name);
+
 void init_thread_data(struct thread_object *obj);
 void deinit_thread_data(struct thread_object *obj);
 
