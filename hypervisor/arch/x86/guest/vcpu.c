@@ -641,6 +641,7 @@ void reset_vcpu(struct acrn_vcpu *vcpu)
 
 	if (vcpu->state != VCPU_INIT) {
 		vcpu->state = VCPU_INIT;
+		init_thread_data(&vcpu->thread_obj);
 
 		vcpu->launched = false;
 		vcpu->running = false;
@@ -731,17 +732,14 @@ static void context_switch_in(struct thread_object *next)
 	rstor_fxstore_guest_area(ectx);
 }
 
-void schedule_vcpu(struct acrn_vcpu *vcpu)
+void launch_vcpu(struct acrn_vcpu *vcpu)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
 	vcpu->state = VCPU_RUNNING;
 	pr_dbg("vcpu%hu scheduled on pcpu%hu", vcpu->vcpu_id, pcpu_id);
 
-	get_schedule_lock(pcpu_id);
-	insert_thread_obj(&vcpu->thread_obj, pcpu_id);
-	make_reschedule_request(pcpu_id, DEL_MODE_IPI);
-	release_schedule_lock(pcpu_id);
+	wake_thread(&vcpu->thread_obj);
 }
 
 /* help function for vcpu create */
@@ -763,6 +761,7 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 		vcpu->thread_obj.host_sp = build_stack_frame(vcpu);
 		vcpu->thread_obj.switch_out = context_switch_out;
 		vcpu->thread_obj.switch_in = context_switch_in;
+		init_thread_data(&vcpu->thread_obj);
 	}
 
 	return ret;
