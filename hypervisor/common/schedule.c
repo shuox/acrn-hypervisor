@@ -7,6 +7,7 @@
 #include <rtl.h>
 #include <list.h>
 #include <bits.h>
+#include <errno.h>
 #include <cpu.h>
 #include <per_cpu.h>
 #include <lapic.h>
@@ -15,6 +16,10 @@
 
 #define SCHED_OP(scheduler, op, ...)   \
 	(((scheduler)->op == NULL) ? (typeof((scheduler)->op(__VA_ARGS__)))0 : (scheduler)->op(__VA_ARGS__))
+
+static struct acrn_scheduler *schedulers[SCHEDULER_MAX_NUMBER] = {
+	&sched_noop,
+};
 
 bool sched_is_idle(struct sched_object *obj)
 {
@@ -54,10 +59,60 @@ void release_schedule_lock(uint16_t pcpu_id)
 	spinlock_release(&ctx->scheduler_lock);
 }
 
+static void set_scheduler(uint16_t pcpu_id, struct acrn_scheduler *scheduler)
+{
+	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+	ctx->scheduler = scheduler;
+}
+
 static struct acrn_scheduler *get_scheduler(uint16_t pcpu_id)
 {
 	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
 	return ctx->scheduler;
+}
+
+static struct acrn_scheduler *find_scheduler_by_name(const char *name)
+{
+	unsigned int i;
+	struct acrn_scheduler *scheduler = NULL;
+
+	for (i = 0U; i < SCHEDULER_MAX_NUMBER && schedulers[i] != NULL; i++) {
+		if (strncmp(name, schedulers[i]->name, sizeof(schedulers[i]->name)) == 0) {
+			scheduler = schedulers[i];
+			break;
+		}
+	}
+
+	return scheduler;
+}
+
+int32_t init_pcpu_schedulers(struct acrn_vm_config *vm_config)
+{
+	int32_t ret = 0;
+	uint16_t pcpu_id;
+	struct acrn_scheduler *scheduler;
+	uint64_t pcpu_bitmap = vm_config->pcpu_bitmap;
+
+	/* verify & set scheduler for all pcpu of this VM */
+	pcpu_id = ffs64(pcpu_bitmap);
+	while (pcpu_id != INVALID_BIT_INDEX) {
+		scheduler = get_scheduler(pcpu_id);
+		if (scheduler && scheduler != find_scheduler_by_name(vm_config->scheduler)) {
+			pr_err("%s: detect scheduler conflict on pcpu%d, might be overwrote!\n", __func__, pcpu_id);
+		}
+		scheduler = find_scheduler_by_name(vm_config->scheduler);
+		if (!scheduler) {
+			pr_err("%s: No valid scheduler found for pcpu%d\n", __func__, pcpu_id);
+			ret = -EINVAL;
+			break;
+		}
+		pr_acrnlog("%s: Set pcpu%d scheduler: %s", __func__, pcpu_id, scheduler->name);
+		set_scheduler(pcpu_id, scheduler);
+		bitmap_clear_nolock(pcpu_id, &pcpu_bitmap);
+		pcpu_id = ffs64(pcpu_bitmap);
+	}
+
+	return ret;
 }
 
 /**
@@ -88,7 +143,9 @@ void init_sched(uint16_t pcpu_id)
 	ctx->flags = 0UL;
 	ctx->current = NULL;
 	ctx->pcpu_id = pcpu_id;
-	ctx->scheduler = &sched_noop;
+	if (ctx->scheduler == NULL) {
+		ctx->scheduler = &sched_noop;
+	}
 	SCHED_OP(ctx->scheduler, init, ctx);
 }
 

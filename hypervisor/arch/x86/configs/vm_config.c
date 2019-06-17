@@ -7,6 +7,7 @@
 #include <bits.h>
 #include <vm_config.h>
 #include <logmsg.h>
+#include <schedule.h>
 #include <cat.h>
 #include <pgtable.h>
 
@@ -133,6 +134,8 @@ bool sanitize_vm_config(void)
 			/* Nothing to do for a unknown VM, break directly. */
 			break;
 		}
+
+		ret |= init_pcpu_schedulers(vm_config);
 
 		if ((vm_config->guest_flags & GUEST_FLAG_CLOS_REQUIRED) != 0U) {
 			if (cat_cap_info.support && (vm_config->clos <= cat_cap_info.clos_max)) {

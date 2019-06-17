@@ -17,6 +17,7 @@ struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] = {
 
 		/* Allow SOS to reboot the host since there is supposed to be the highest severity guest */
 		.guest_flags = GUEST_FLAG_HIGHEST_SEVERITY,
+		.scheduler = "sched_noop",
 		.clos = 0U,
 		.memory = {
 			.start_hpa = 0UL,
@@ -45,6 +46,7 @@ struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] = {
 			/* d2795438-25d6-11e8-864e-cb7a18b34643 */
 		.cpu_num = 3U,
 		.vcpu_affinity = {1U << 1U, 1U << 2U, 1U << 3U},
+		.scheduler = "sched_noop",
 		.vuart[0] = {
 			.type = VUART_LEGACY_PIO,
 			.addr.port_base = INVALID_COM_BASE,

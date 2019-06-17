@@ -91,6 +91,7 @@ struct acrn_vm_config {
 	uint64_t pcpu_bitmap;				/* from pcpu bitmap, we could know VM core number */
 	uint16_t cpu_num;                               /* Number of vCPUs for the VM */
 	uint64_t vcpu_affinity[CONFIG_MAX_VCPUS_PER_VM];/* bitmaps for vCPUs' schedule affinity */
+	char scheduler[16];				/* scheduler name identifier */
 	uint64_t guest_flags;				/* VM flags that we want to configure for guest
 							 * Now we have two flags:
 							 *	GUEST_FLAG_SECURE_WORLD_ENABLED

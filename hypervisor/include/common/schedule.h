@@ -7,6 +7,7 @@
 #ifndef SCHEDULE_H
 #define SCHEDULE_H
 #include <spinlock.h>
+#include <vm_config.h>
 
 #define	NEED_RESCHEDULE		(1U)
 
@@ -97,6 +98,7 @@ void switch_to_idle(sched_thread_t idle_thread);
 void get_schedule_lock(uint16_t pcpu_id);
 void release_schedule_lock(uint16_t pcpu_id);
 
+int32_t init_pcpu_schedulers(struct acrn_vm_config *vm_config);
 uint16_t sched_pick_pcpu(uint64_t pcpu_bitmap, uint64_t vcpu_sched_affinity);
 
 void sched_init_data(struct sched_object *obj);
