@@ -42,6 +42,7 @@ struct sched_object {
 };
 
 struct sched_context {
+	uint16_t pcpu_id;
 	uint64_t flags;
 	struct sched_object *current;
 	spinlock_t scheduler_lock;

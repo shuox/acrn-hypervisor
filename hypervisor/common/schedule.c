@@ -54,6 +54,7 @@ void init_sched(uint16_t pcpu_id)
 	spinlock_init(&ctx->scheduler_lock);
 	ctx->flags = 0UL;
 	ctx->current = NULL;
+	ctx->pcpu_id = pcpu_id;
 }
 
 void get_schedule_lock(uint16_t pcpu_id)
