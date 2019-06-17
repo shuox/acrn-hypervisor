@@ -168,20 +168,6 @@ bool need_reschedule(uint16_t pcpu_id)
 	return bitmap_test(NEED_RESCHEDULE, &ctx->flags);
 }
 
-static void prepare_switch(struct sched_object *prev, struct sched_object *next)
-{
-	if ((prev != NULL) && (prev->switch_out != NULL)) {
-		prev->switch_out(prev);
-	}
-
-	/* update current object */
-	get_cpu_var(sched_ctx).current = next;
-
-	if ((next != NULL) && (next->switch_in != NULL)) {
-		next->switch_in(next);
-	}
-}
-
 void schedule(void)
 {
 	uint16_t pcpu_id = get_pcpu_id();
@@ -198,12 +184,18 @@ void schedule(void)
 		sched_set_status(prev, SCHED_STS_RUNNABLE);
 	}
 	sched_set_status(next, SCHED_STS_RUNNING);
+	ctx->current = next;
+	release_schedule_lock(pcpu_id);
 
-	if (prev == next) {
-		release_schedule_lock(pcpu_id);
-	} else {
-		prepare_switch(prev, next);
-		release_schedule_lock(pcpu_id);
+	/* If we picked different sched object, switch context */
+	if (prev != next) {
+		if ((prev != NULL) && (prev->switch_out != NULL)) {
+			prev->switch_out(prev);
+		}
+
+		if ((next != NULL) && (next->switch_in != NULL)) {
+			next->switch_in(next);
+		}
 
 		arch_switch_to(&prev->host_sp, &next->host_sp);
 	}
