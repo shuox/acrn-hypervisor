@@ -112,6 +112,7 @@ bool need_reschedule(uint16_t pcpu_id);
 void sleep(struct sched_object *obj);
 void wake(struct sched_object *obj);
 void poke(struct sched_object *obj);
+void yield(void);
 void schedule(void);
 void run_sched_thread(struct sched_object *obj);
 

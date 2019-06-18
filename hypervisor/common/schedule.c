@@ -305,6 +305,16 @@ void poke(struct sched_object *obj)
 	release_schedule_lock(pcpu_id);
 }
 
+void yield(void)
+{
+	uint16_t pcpu_id = get_pcpu_id();
+	struct acrn_scheduler *scheduler = get_scheduler(pcpu_id);
+	struct sched_context *ctx = &per_cpu(sched_ctx, pcpu_id);
+
+	SCHED_OP(scheduler, yield, ctx);
+	make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+}
+
 void run_sched_thread(struct sched_object *obj)
 {
 	if (obj->thread != NULL) {
