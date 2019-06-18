@@ -290,6 +290,21 @@ void wake(struct sched_object *obj)
 	release_schedule_lock(pcpu_id);
 }
 
+void poke(struct sched_object *obj)
+{
+	uint16_t pcpu_id = obj->pcpu_id;
+	struct acrn_scheduler *scheduler = get_scheduler(pcpu_id);
+
+	get_schedule_lock(pcpu_id);
+	if (is_running(obj) && get_pcpu_id() != pcpu_id) {
+		send_single_ipi(pcpu_id, VECTOR_NOTIFY_VCPU);
+	} else if (is_runnable(obj)) {
+		SCHED_OP(scheduler, poke, obj);
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+	}
+	release_schedule_lock(pcpu_id);
+}
+
 void run_sched_thread(struct sched_object *obj)
 {
 	if (obj->thread != NULL) {
