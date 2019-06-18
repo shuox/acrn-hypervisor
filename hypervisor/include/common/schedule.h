@@ -102,6 +102,7 @@ bool need_reschedule(uint16_t pcpu_id);
 
 void sleep_thread(struct thread_object *obj);
 void wake_thread(struct thread_object *obj);
+void poke_thread(struct thread_object *obj);
 void schedule(void);
 void run_sched_thread(struct thread_object *obj);
 

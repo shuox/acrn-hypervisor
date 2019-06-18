@@ -599,6 +599,11 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 	vcpu->state = VCPU_OFFLINE;
 }
 
+void poke_vcpu(struct acrn_vcpu *vcpu)
+{
+	poke_thread(&vcpu->thread_obj);
+}
+
 /*
 * @pre (&vcpu->stack[CONFIG_STACK_SIZE] & (CPU_STACK_ALIGN - 1UL)) == 0
 */
