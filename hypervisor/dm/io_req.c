@@ -144,10 +144,8 @@ int32_t acrn_insert_request(struct acrn_vcpu *vcpu, const struct io_request *io_
 				}
 				asm_pause();
 			}
-		} else if (need_reschedule(pcpuid_from_vcpu(vcpu))) {
-			schedule();
 		} else {
-			ret = -EINVAL;
+			schedule();
 		}
 	} else {
 		ret = -EINVAL;
