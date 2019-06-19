@@ -82,6 +82,7 @@ void vcpu_thread(struct sched_object *obj)
 
 void default_idle(__unused struct sched_object *obj)
 {
+	struct acrn_vcpu *vcpu = list_entry(obj, struct acrn_vcpu, sched_obj);
 	uint16_t pcpu_id = get_pcpu_id();
 
 	while (1) {
@@ -95,6 +96,9 @@ void default_idle(__unused struct sched_object *obj)
 			CPU_IRQ_ENABLE();
 			cpu_do_idle();
 			CPU_IRQ_DISABLE();
+			if (!is_lapic_pt_enabled(vcpu)) {
+				do_softirq();
+			}
 		}
 	}
 }
