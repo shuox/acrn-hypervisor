@@ -19,6 +19,7 @@
 
 static struct acrn_scheduler *schedulers[SCHEDULER_MAX_NUMBER] = {
 	&sched_noop,
+	&sched_rr,
 };
 
 bool sched_is_idle(struct sched_object *obj)

@@ -203,6 +203,7 @@ HW_C_SRCS += arch/x86/sgx.c
 HW_C_SRCS += common/softirq.c
 HW_C_SRCS += common/schedule.c
 HW_C_SRCS += common/sched_noop.c
+HW_C_SRCS += common/sched_rr.c
 HW_C_SRCS += hw/pci.c
 HW_C_SRCS += arch/x86/configs/vm_config.c
 HW_C_SRCS += arch/x86/configs/$(CONFIG_BOARD)/board.c

@@ -8,6 +8,8 @@
 #define SCHEDULE_H
 #include <spinlock.h>
 #include <vm_config.h>
+#include <list.h>
+#include <timer.h>
 
 #define	NEED_RESCHEDULE		(1U)
 
@@ -83,9 +85,15 @@ struct acrn_scheduler {
 	void	(*deinit)(struct sched_context *ctx);
 };
 extern struct acrn_scheduler sched_noop;
+extern struct acrn_scheduler sched_rr;
 
 struct sched_noop_context {
 	struct sched_object *noop_sched_obj;
+};
+
+struct sched_rr_context {
+	struct list_head runqueue;
+	struct hv_timer tick_timer;
 };
 
 bool sched_is_idle(struct sched_object *obj);
