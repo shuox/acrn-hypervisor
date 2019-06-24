@@ -634,9 +634,6 @@ static void context_switch_out(struct sched_object *prev)
 {
 	struct acrn_vcpu *vcpu = list_entry(prev, struct acrn_vcpu, sched_obj);
 
-	/* cancel event(int, gp, nmi and exception) injection */
-	cancel_event_injection(vcpu);
-
 	atomic_store32(&vcpu->running, 0U);
 	/* do prev vcpu context switch out */
 	/* For now, we don't need to invalid ept.
