@@ -534,6 +534,7 @@ void offline_vcpu(struct acrn_vcpu *vcpu)
 {
 	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
 
+	sched_remove(&vcpu->sched_obj, pcpu_id);
 	vlapic_free(vcpu);
 	per_cpu(ever_run_vcpu, pcpu_id) = NULL;
 	vcpu->state = VCPU_OFFLINE;
