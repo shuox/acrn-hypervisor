@@ -8,6 +8,7 @@
 #include <per_cpu.h>
 #include <schedule.h>
 
+#define CONFIG_SLICE_MS 10UL
 struct sched_rr_data {
 	/* keep list as the first item */
 	struct list_head list;
@@ -17,17 +18,44 @@ struct sched_rr_data {
 	int64_t  left_cycles;
 };
 
-int sched_rr_init(__unused struct sched_context *ctx)
-{
-	return 0;
-}
-
-void sched_rr_deinit(__unused struct sched_context *ctx)
+static void sched_tick_handler(__unused void *param)
 {
 }
 
-void sched_rr_init_data(__unused struct sched_object *obj)
+int sched_rr_init(struct sched_context *ctx)
 {
+	struct sched_rr_context *rr_ctx = &per_cpu(sched_rr_ctx, ctx->pcpu_id);
+	uint64_t tick_period = CONFIG_SLICE_MS * CYCLES_PER_MS / 2;
+	int ret = 0;
+
+	ctx->priv = rr_ctx;
+	INIT_LIST_HEAD(&rr_ctx->runqueue);
+
+	/* The tick_timer is periodically */
+	initialize_timer(&rr_ctx->tick_timer, sched_tick_handler, ctx,
+			rdtsc() + tick_period, TICK_MODE_PERIODIC, tick_period);
+	if (add_timer(&rr_ctx->tick_timer) < 0) {
+		pr_err("Failed to add schedule tick timer!");
+		ret = -1;
+	}
+
+	return ret;
+}
+
+void sched_rr_deinit(struct sched_context *ctx)
+{
+	struct sched_rr_context *rr_ctx = (struct sched_rr_context *)ctx->priv;
+	del_timer(&rr_ctx->tick_timer);
+}
+
+void sched_rr_init_data(struct sched_object *obj)
+{
+	struct sched_rr_data *data;
+
+	ASSERT(sizeof(struct sched_rr_data) < sizeof(obj->data), "sched_rr data size too large!");
+	data = (struct sched_rr_data *)obj->data;
+	INIT_LIST_HEAD(&data->list);
+	data->left_cycles = data->slice_cycles = CONFIG_SLICE_MS * CYCLES_PER_MS;
 }
 
 void sched_rr_insert(__unused struct sched_object *obj)
