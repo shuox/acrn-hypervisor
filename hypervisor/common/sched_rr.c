@@ -18,8 +18,68 @@ struct sched_rr_data {
 	int64_t  left_cycles;
 };
 
-static void sched_tick_handler(__unused void *param)
+bool is_inqueue(struct thread_object *obj)
 {
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
+	return !list_empty(&data->list);
+}
+
+void runqueue_add_head(struct thread_object *obj)
+{
+	struct sched_rr_control *rr_ctl = (struct sched_rr_control *)obj->sched_ctl->priv;
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
+
+	if (!is_inqueue(obj)) {
+		list_add(&data->list, &rr_ctl->runqueue);
+	}
+}
+
+void runqueue_add_tail(struct thread_object *obj)
+{
+	struct sched_rr_control *rr_ctl = (struct sched_rr_control *)obj->sched_ctl->priv;
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
+
+	if (!is_inqueue(obj)) {
+		list_add_tail(&data->list, &rr_ctl->runqueue);
+	}
+}
+
+void queue_remove(struct thread_object *obj)
+{
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
+	/* treat no queued object as paused, should wake it up when events arrive */
+	list_del_init(&data->list);
+}
+
+static void sched_tick_handler(void *param)
+{
+	struct sched_control  *ctl = (struct sched_control *)param;
+	struct sched_rr_control *rr_ctl = (struct sched_rr_control *)ctl->priv;
+	struct sched_rr_data *data;
+	struct thread_object *current;
+	uint16_t pcpu_id = get_pcpu_id();
+	uint64_t now = rdtsc();
+	uint64_t rflags;
+
+	obtain_schedule_lock(pcpu_id, &rflags);
+	current = ctl->curr_obj;
+
+	/* If no vCPU start scheduling, ignore this tick */
+	if (current == NULL || (is_idle_thread(current) && list_empty(&rr_ctl->runqueue))) {
+		release_schedule_lock(pcpu_id, rflags);
+		return;
+	}
+	data = (struct sched_rr_data *)current->data;
+	/* consume the left_cycles of current thread_object if it is not idle */
+	if (!is_idle_thread(current)) {
+		data->left_cycles -= now - data->last_cycles;
+		data->last_cycles = now;
+	}
+	/* make reschedule request if current ran out of its cycles */
+	if (is_idle_thread(current) || data->left_cycles <= 0) {
+		make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+	}
+	release_schedule_lock(pcpu_id, rflags);
 }
 
 int sched_rr_init(struct sched_control *ctl)
