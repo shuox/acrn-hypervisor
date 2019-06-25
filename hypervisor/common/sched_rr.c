@@ -144,17 +144,51 @@ void sched_rr_init_data(struct sched_object *obj)
 	data->left_cycles = data->slice_cycles = CONFIG_SLICE_MS * CYCLES_PER_MS;
 }
 
-void sched_rr_insert(__unused struct sched_object *obj)
+void sched_rr_insert(struct sched_object *obj)
 {
+	runqueue_add_tail(obj);
 }
 
-void sched_rr_remove(__unused struct sched_object *obj)
+void sched_rr_remove(struct sched_object *obj)
 {
+	queue_remove(obj);
 }
 
-static struct sched_object *sched_rr_pick_next(__unused struct sched_context *ctx)
+static struct sched_object *sched_rr_pick_next(struct sched_context *ctx)
 {
-	return NULL;
+	struct sched_rr_context *rr_ctx = (struct sched_rr_context *)ctx->priv;
+	struct sched_object *next = NULL;
+	struct sched_object *current = NULL;
+	struct sched_rr_data *data;
+	uint64_t now = rdtsc();
+
+	current = ctx->current;
+	data = (struct sched_rr_data *)current->data;
+	/* Ignore the idle object, inactive objects */
+	if (!sched_is_idle(current) && is_active(current)) {
+		data->left_cycles -= now - data->last_cycles;
+		queue_remove(current);
+		runqueue_add_tail(current);
+	}
+
+
+	/* Pick the next runnable sched object
+	 * 1) get the first item in runqueue firstly
+	 * 2) if object picked has no time_cycles, replenish it pick this one
+	 * 3) At least take one idle sched object if we have no runnable one after step 1) and 2)
+	 */
+	if (!list_empty(&rr_ctx->runqueue)) {
+		next = get_first_item(&rr_ctx->runqueue, struct sched_object, data);
+		data = (struct sched_rr_data *)next->data;
+		data->last_cycles = now;
+		while (data->left_cycles <= 0) {
+			data->left_cycles += data->slice_cycles;
+		}
+	} else {
+		next = &get_cpu_var(idle);
+	}
+
+	return next;
 }
 
 static void sched_rr_yield(__unused struct sched_context *ctx)
@@ -162,17 +196,23 @@ static void sched_rr_yield(__unused struct sched_context *ctx)
 	/* Do nothing in sched_rr, just let current switch out */
 }
 
-static void sched_rr_sleep(__unused struct sched_object *obj)
+static void sched_rr_sleep(struct sched_object *obj)
 {
+	queue_remove(obj);
 }
 
-static void sched_rr_wake(__unused struct sched_object *obj)
+static void sched_rr_wake(struct sched_object *obj)
 {
+	runqueue_add_head(obj);
 }
 
-
-static void sched_rr_poke(__unused struct sched_object *obj)
+static void sched_rr_poke(struct sched_object *obj)
 {
+	struct sched_rr_data *data = (struct sched_rr_data *)obj->data;
+	if (data->left_cycles > 0) {
+		queue_remove(obj);
+		runqueue_add_head(obj);
+	}
 }
 
 struct acrn_scheduler sched_rr = {
