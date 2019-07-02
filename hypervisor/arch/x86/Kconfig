@@ -1,6 +1,6 @@
 choice
 	prompt "ACRN Scenario"
-	default INDUSTRY
+	default SDC
 	help
 	  Select the scenario name to load corresponding VM configuration.
 
