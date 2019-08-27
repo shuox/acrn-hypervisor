@@ -183,20 +183,24 @@ void enable_paging(void)
 
 void enable_smep(void)
 {
+#if 0
 	uint64_t val64 = 0UL;
 
 	/* Enable CR4.SMEP*/
 	CPU_CR_READ(cr4, &val64);
 	CPU_CR_WRITE(cr4, val64 | CR4_SMEP);
+#endif
 }
 
 void enable_smap(void)
 {
+#if 0
 	uint64_t val64 = 0UL;
 
 	/* Enable CR4.SMAP*/
 	CPU_CR_READ(cr4, &val64);
 	CPU_CR_WRITE(cr4, val64 | CR4_SMAP);
+#endif
 }
 
 /*
