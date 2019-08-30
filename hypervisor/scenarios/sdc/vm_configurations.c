@@ -44,8 +44,8 @@ struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] = {
 		.uuid = {0xd2U, 0x79U, 0x54U, 0x38U, 0x25U, 0xd6U, 0x11U, 0xe8U,	\
 			 0x86U, 0x4eU, 0xcbU, 0x7aU, 0x18U, 0xb3U, 0x46U, 0x43U},
 			/* d2795438-25d6-11e8-864e-cb7a18b34643 */
-		.cpu_num = 3U,
-		.vcpu_affinity = {1U << 1U, 1U << 2U, 1U << 3U},
+		.cpu_num = 4U,
+		.vcpu_affinity = {1U << 0U, 1U << 1U, 1U << 2U, 1U << 3U},
 		.scheduler = "sched_rr",
 		.vuart[0] = {
 			.type = VUART_LEGACY_PIO,
