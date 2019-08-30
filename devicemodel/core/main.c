@@ -37,6 +37,7 @@
 #include <sysexits.h>
 #include <stdbool.h>
 #include <getopt.h>
+#include <sys/sysinfo.h>
 
 #include "vmmapi.h"
 #include "sw_load.h"
@@ -100,7 +101,7 @@ static const int BSP;
 
 static cpuset_t cpumask;
 
-static void vm_loop(struct vmctx *ctx);
+static void vm_loop(struct vmctx *ctx, int vcpu);
 
 static char vhm_request_page[4096] __aligned(4096);
 
@@ -267,15 +268,26 @@ start_thread(void *param)
 {
 	char tname[MAXCOMLEN + 1];
 	struct mt_vmm_info *mtp;
+	cpu_set_t cpuset;
+	pthread_t thread;
+	struct vmctx *ctx;
+
+	int pcpu_num;
 	int vcpu;
 
 	mtp = param;
 	vcpu = mtp->mt_vcpu;
+	ctx = mtp->mt_ctx;
+	thread = pthread_self();
+	pcpu_num = get_nprocs_conf();
+	CPU_ZERO(&cpuset);
+	CPU_SET(vcpu % pcpu_num, &cpuset);
 
 	snprintf(tname, sizeof(tname), "vcpu %d", vcpu);
-	pthread_setname_np(mtp->mt_thr, tname);
+	pthread_setname_np(thread, tname);
+	pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
 
-	vm_loop(mtp->mt_ctx);
+	vm_loop(ctx, vcpu);
 
 	/* reset or halt */
 	return NULL;
@@ -285,19 +297,30 @@ static int
 add_cpu(struct vmctx *ctx, int guest_ncpus)
 {
 	int i;
-	int error;
+	int error  = 0;
+
+	ctx->ioreq_client = vm_create_ioreq_client(ctx);
+	if (ctx->ioreq_client <= 0) {
+		pr_err("%s, failed to create IOREQ.\n", __func__);
+		return ctx->ioreq_client;
+	}
 
 	for (i = 0; i < guest_ncpus; i++) {
 		CPU_SET_ATOMIC(i, &cpumask);
 
 		mt_vmm_info[i].mt_ctx = ctx;
 		mt_vmm_info[i].mt_vcpu = i;
+
+		pthread_create(&mt_vmm_info[i].mt_thr, NULL,
+				start_thread, &mt_vmm_info[i]);
 	}
 
 	vm_set_vcpu_regs(ctx, &ctx->bsp_regs);
 
-	error = pthread_create(&mt_vmm_info[0].mt_thr, NULL,
-	    start_thread, &mt_vmm_info[0]);
+	if (vm_run(ctx) != 0) {
+		pr_err("%s, failed to run VM.\n", __func__);
+		error = -1;
+	}
 
 	return error;
 }
@@ -642,47 +665,35 @@ vm_suspend_resume(struct vmctx *ctx)
 }
 
 static void
-vm_loop(struct vmctx *ctx)
+vm_loop(struct vmctx *ctx, int vcpu)
 {
 	int error;
 
-	ctx->ioreq_client = vm_create_ioreq_client(ctx);
-	if (ctx->ioreq_client <= 0) {
-		pr_err("%s, failed to create IOREQ.\n", __func__);
-		return;
-	}
-
-	if (vm_run(ctx) != 0) {
-		pr_err("%s, failed to run VM.\n", __func__);
-		return;
-	}
-
 	while (1) {
-		int vcpu_id;
 		struct vhm_request *vhm_req;
 
 		error = vm_attach_ioreq_client(ctx);
 		if (error)
 			break;
 
-		for (vcpu_id = 0; vcpu_id < guest_ncpus; vcpu_id++) {
-			vhm_req = &vhm_req_buf[vcpu_id];
-			if ((atomic_load(&vhm_req->processed) == REQ_STATE_PROCESSING)
+		vhm_req = &vhm_req_buf[vcpu];
+		if ((atomic_load(&vhm_req->processed) == REQ_STATE_PROCESSING)
 				&& (vhm_req->client == ctx->ioreq_client))
-				handle_vmexit(ctx, vhm_req, vcpu_id);
-		}
+			handle_vmexit(ctx, vhm_req, vcpu);
 
-		if (VM_SUSPEND_FULL_RESET == vm_get_suspend_mode() ||
-		    VM_SUSPEND_POWEROFF == vm_get_suspend_mode()) {
-			break;
-		}
+		if (vcpu == 0) {
+			if (VM_SUSPEND_FULL_RESET == vm_get_suspend_mode() ||
+					VM_SUSPEND_POWEROFF == vm_get_suspend_mode()) {
+				break;
+			}
 
-		if (VM_SUSPEND_SYSTEM_RESET == vm_get_suspend_mode()) {
-			vm_system_reset(ctx);
-		}
+			if (VM_SUSPEND_SYSTEM_RESET == vm_get_suspend_mode()) {
+				vm_system_reset(ctx);
+			}
 
-		if (VM_SUSPEND_SUSPEND == vm_get_suspend_mode()) {
-			vm_suspend_resume(ctx);
+			if (VM_SUSPEND_SUSPEND == vm_get_suspend_mode()) {
+				vm_suspend_resume(ctx);
+			}
 		}
 	}
 	printf("VM loop exit\n");
