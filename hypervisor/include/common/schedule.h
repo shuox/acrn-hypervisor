@@ -89,8 +89,8 @@ struct thread_object *sched_get_current(uint16_t pcpu_id);
 void init_sched(uint16_t pcpu_id);
 void deinit_sched(uint16_t pcpu_id);
 void switch_to_idle(thread_entry_t idle_thread);
-void get_schedule_lock(uint16_t pcpu_id);
-void release_schedule_lock(uint16_t pcpu_id);
+void get_schedule_lock(uint16_t pcpu_id, uint64_t *rflag);
+void release_schedule_lock(uint16_t pcpu_id, uint64_t rflag);
 
 void init_thread_data(struct thread_object *obj);
 void deinit_thread_data(struct thread_object *obj);
