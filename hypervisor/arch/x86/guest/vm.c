@@ -789,7 +789,7 @@ void resume_vm_from_s3(struct acrn_vm *vm, uint32_t wakeup_vec)
 
 	init_vmcs(bsp);
 	schedule_vcpu(bsp);
-	switch_to_idle(default_idle);
+	switch_to_idle();
 }
 
 /**

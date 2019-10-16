@@ -11,6 +11,7 @@
 #include <irq.h>
 #include <schedule.h>
 #include <profiling.h>
+#include <sprintf.h>
 #include <trace.h>
 #include <logmsg.h>
 
@@ -94,4 +95,23 @@ void default_idle(__unused struct thread_object *obj)
 			CPU_IRQ_DISABLE();
 		}
 	}
+}
+
+void switch_to_idle(void)
+{
+	uint16_t pcpu_id = get_pcpu_id();
+	struct thread_object *idle = &per_cpu(idle, pcpu_id);
+	char idle_name[16];
+
+	snprintf(idle_name, 16U, "idle%hu", pcpu_id);
+	(void)strncpy_s(idle->name, 16U, idle_name, 16U);
+	idle->pcpu_id = pcpu_id;
+	idle->thread_entry = default_idle;
+	idle->switch_out = NULL;
+	idle->switch_in = NULL;
+
+	run_thread(idle);
+
+	/* Control should not come here */
+	cpu_dead();
 }
