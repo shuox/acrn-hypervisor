@@ -240,6 +240,24 @@ void kick_thread(const struct thread_object *obj)
 	release_schedule_lock(pcpu_id, rflag);
 }
 
+void suspend_sched(void)
+{
+	struct sched_control *ctl = &per_cpu(sched_ctl, get_pcpu_id());
+
+	if (ctl->scheduler->deinit != NULL) {
+		ctl->scheduler->deinit(ctl);
+	}
+}
+
+void resume_sched(void)
+{
+	struct sched_control *ctl = &per_cpu(sched_ctl, get_pcpu_id());
+
+	if (ctl->scheduler->init != NULL) {
+		ctl->scheduler->init(ctl);
+	}
+}
+
 void yield(void)
 {
 	make_reschedule_request(get_pcpu_id(), DEL_MODE_IPI);
