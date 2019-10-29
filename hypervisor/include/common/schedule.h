@@ -111,6 +111,8 @@ void wake_thread(struct thread_object *obj);
 void kick_thread(const struct thread_object *obj);
 void yield(void);
 void schedule(void);
+void suspend_sched(void);
+void resume_sched(void);
 
 void arch_switch_to(void *prev_sp, void *next_sp);
 void run_idle_thread(void);
