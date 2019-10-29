@@ -194,6 +194,7 @@ void host_enter_s3(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_
 	CPU_IRQ_DISABLE();
 	vmx_off();
 
+	suspend_sched();
 	suspend_console();
 	suspend_ioapic();
 	suspend_iommu();
@@ -225,6 +226,7 @@ void host_enter_s3(const struct pm_s_state_data *sstate_data, uint32_t pm1a_cnt_
 
 	/* console must be resumed after TSC restored since it will setup timer base on TSC */
 	resume_console();
+	resume_sched();
 }
 
 void reset_host(void)
