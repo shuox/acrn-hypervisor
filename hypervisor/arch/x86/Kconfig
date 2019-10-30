@@ -37,6 +37,28 @@ config HYBRID
 
 endchoice
 
+choice
+	prompt "ACRN Scheduler"
+	default SCHED_IORR
+	help
+	  Select the NOOP scheduler for hypervisor.
+	  one vCPU running on one pCPU.
+
+config SCHED_NOOP
+	bool "NOOP scheduler"
+	help
+	  The NOOP(No-Operation) scheduler only supports one vCPU running on one pCPU.
+
+config SCHED_IORR
+        bool "IORR scheduler"
+	depends on (!INDUSTRY && !LOGICAL_PARTITION)
+        help
+          IORR (IO sensitive Round Robin) scheduler supports multipule vCPUs running on
+	  on one pCPU, and they will be scheduled by a IO sensitive round robin policy.
+
+endchoice
+
+
 config BOARD
 	string "Target board"
 	help
