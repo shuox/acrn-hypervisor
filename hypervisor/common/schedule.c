@@ -12,6 +12,7 @@
 #include <lapic.h>
 #include <schedule.h>
 #include <sprintf.h>
+#include <trace.h>
 
 bool is_idle_thread(const struct thread_object *obj)
 {
@@ -178,9 +179,11 @@ void schedule(void)
 	if (prev != next) {
 		if ((prev != NULL) && (prev->switch_out != NULL)) {
 			prev->switch_out(prev);
+			TRACE_4I(TRACE_PCPU_SCHED_END, prev->pcpu_id, prev->vm_id, prev->vcpu_id, 0);
 		}
 
 		if ((next != NULL) && (next->switch_in != NULL)) {
+			TRACE_4I(TRACE_PCPU_SCHED_START, next->pcpu_id, next->vm_id, next->vcpu_id, 0);
 			next->switch_in(next);
 		}
 

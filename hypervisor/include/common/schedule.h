@@ -42,6 +42,8 @@ struct thread_object {
 	uint64_t host_sp;
 	switch_t switch_out;
 	switch_t switch_in;
+	uint16_t vcpu_id;
+	uint16_t vm_id;
 
 	uint8_t data[THREAD_DATA_SIZE];
 };
