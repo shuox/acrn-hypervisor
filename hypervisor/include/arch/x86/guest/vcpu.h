@@ -545,13 +545,13 @@ static inline bool is_pae(struct acrn_vcpu *vcpu)
 
 static inline void save_fxstore_guest_area(struct ext_context *ext_ctx)
 {
-	asm volatile("fxsave (%0)"
-			: : "r" (ext_ctx->fxstore_guest_area) : "memory");
+       asm volatile("fxsave (%0)"
+                       : : "r" (ext_ctx->xstore_guest_area) : "memory");
 }
 
 static inline void rstor_fxstore_guest_area(const struct ext_context *ext_ctx)
 {
-	asm volatile("fxrstor (%0)" : : "r" (ext_ctx->fxstore_guest_area));
+       asm volatile("fxrstor (%0)" : : "r" (ext_ctx->xstore_guest_area));
 }
 
 struct acrn_vcpu *get_running_vcpu(uint16_t pcpu_id);
