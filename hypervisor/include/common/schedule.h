@@ -90,6 +90,7 @@ struct sched_noop_control {
 struct sched_rr_control {
 	struct list_head runqueue;
 	struct hv_timer tick_timer;
+	uint64_t active_obj_num;
 };
 
 bool is_idle_thread(const struct thread_object *obj);

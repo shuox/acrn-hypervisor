@@ -86,7 +86,6 @@ int sched_rr_init(struct sched_control *ctl)
 {
 	struct sched_rr_control *rr_ctl = &per_cpu(sched_rr_ctl, ctl->pcpu_id);
 	uint64_t tick_period = CYCLES_PER_MS;
-	int ret = 0;
 
 	ctl->priv = rr_ctl;
 	INIT_LIST_HEAD(&rr_ctl->runqueue);
@@ -94,12 +93,8 @@ int sched_rr_init(struct sched_control *ctl)
 	/* The tick_timer is periodically */
 	initialize_timer(&rr_ctl->tick_timer, sched_tick_handler, ctl,
 			rdtsc() + tick_period, TICK_MODE_PERIODIC, tick_period);
-	if (add_timer(&rr_ctl->tick_timer) < 0) {
-		pr_err("Failed to add schedule tick timer!");
-		ret = -1;
-	}
 
-	return ret;
+	return 0;
 }
 
 void sched_rr_deinit(struct sched_control *ctl)
@@ -160,11 +155,25 @@ static struct thread_object *sched_rr_pick_next(struct sched_control *ctl)
 
 static void sched_rr_sleep(struct thread_object *obj)
 {
+	struct sched_rr_control *rr_ctl = &per_cpu(sched_rr_ctl, obj->pcpu_id);
+
 	queue_remove(obj);
+	rr_ctl->active_obj_num--;
+	if (rr_ctl->active_obj_num == 1U) {
+		del_timer(&rr_ctl->tick_timer);
+	}
 }
 
 static void sched_rr_wake(struct thread_object *obj)
 {
+	struct sched_rr_control *rr_ctl = &per_cpu(sched_rr_ctl, obj->pcpu_id);
+
+	if (rr_ctl->active_obj_num == 1U) {
+		if (add_timer(&rr_ctl->tick_timer) < 0) {
+			pr_err("Failed to add schedule tick timer!");
+		}
+	}
+	rr_ctl->active_obj_num++;
 	runqueue_add_head(obj);
 }
 
