@@ -48,7 +48,7 @@ struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] = {
 			 0x86U, 0x4eU, 0xcbU, 0x7aU, 0x18U, 0xb3U, 0x46U, 0x43U},
 			/* d2795438-25d6-11e8-864e-cb7a18b34643 */
 		.vcpu_num = 1U,
-		.vcpu_affinity = {1<<1},
+		.vcpu_affinity = {1<<0},
 		.vuart[0] = {
 			.type = VUART_LEGACY_PIO,
 			.addr.port_base = COM1_BASE,
@@ -68,8 +68,8 @@ struct acrn_vm_config vm_configs[CONFIG_MAX_VM_NUM] = {
 
 		/* The hard RTVM must be launched as VM2 */
 		.guest_flags = GUEST_FLAG_HIGHEST_SEVERITY,
-		.vcpu_num = 1U,
-		.vcpu_affinity = {1<<2},
+		.vcpu_num = 2U,
+		.vcpu_affinity = {1<<1, 1<<2},
 		.vuart[0] = {
 			.type = VUART_LEGACY_PIO,
 			.addr.port_base = COM1_BASE,
