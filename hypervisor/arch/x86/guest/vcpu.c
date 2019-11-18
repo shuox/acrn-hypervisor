@@ -17,7 +17,6 @@
 #include <vmcs.h>
 #include <mmu.h>
 #include <sprintf.h>
-#include <cpufeatures.h>
 
 /* stack_frame is linked with the sequence of stack operation in arch_switch_to() */
 struct stack_frame {
@@ -385,7 +384,6 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 	struct acrn_vcpu *vcpu;
 	uint16_t vcpu_id;
 	int32_t ret;
-	struct ext_context *ectx;
 
 	pr_info("Creating VCPU working on PCPU%hu", pcpu_id);
 
@@ -432,14 +430,6 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 
 		/* Initialize cur context */
 		vcpu->arch.cur_context = NORMAL_WORLD;
-		ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
-		ectx->cpu_feature_xsaves = pcpu_has_cap(X86_FEATURE_XSAVES);
-		ectx->cpu_feature_xsaveopt = pcpu_has_cap(X86_FEATURE_XSAVEOPT);
-		ectx->cpu_feature_xsave = pcpu_has_cap(X86_FEATURE_XSAVE);
-		printf("xsaves = %d xsaveopt = %d xsave = %d\n",
-				ectx->cpu_feature_xsaves,
-				ectx->cpu_feature_xsaveopt,
-				pcpu_has_cap(X86_FEATURE_XSAVE));
 
 		/* Create per vcpu vlapic */
 		vlapic_create(vcpu);
@@ -706,87 +696,6 @@ void resume_vcpu(struct acrn_vcpu *vcpu)
 	}
 }
 
-#define MASK_ALL_32U 0xFFFFFFFFU
-static void xsave(struct acrn_vcpu *vcpu)
-{
-	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
-	uint64_t *ptr = ectx->xstore_guest_area;
-
-	// save XCR0
-	ectx->xcr0 = read_xcr(0);
-	if (ectx->cpu_feature_xsaves) {
-		// save XSS
-		ectx->xss = msr_read(MSR_IA32_XSS);
-		asm volatile("xsaves %0"
-				: : "m" (*ptr),
-				"d" (MASK_ALL_32U),
-				"a" (MASK_ALL_32U):
-				"memory");
-	} else if (ectx->cpu_feature_xsaveopt) {
-		asm volatile("xsaveopt %0"
-				: : "m" (*ptr),
-				"d" (MASK_ALL_32U),
-				"a" (MASK_ALL_32U):
-				"memory");
-	} else {
-		// xsave
-		asm volatile("xsave %0"
-				: : "m" (*ptr),
-				"d" (MASK_ALL_32U),
-				"a" (MASK_ALL_32U):
-				"memory");
-	}
-}
-
-static void xrstore(struct acrn_vcpu *vcpu)
-{
-	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
-	uint64_t *ptr = ectx->xstore_guest_area;
-
-	// rstore XCR0
-	write_xcr(0, ectx->xcr0);
-
-	if (ectx->cpu_feature_xsaves) {
-		// rstore XSS
-		msr_write(MSR_IA32_XSS, ectx->xss);
-		// xrstors
-		asm volatile("xrstors %0"
-				: : "m" (*ptr),
-				"d" (MASK_ALL_32U),
-				"a" (MASK_ALL_32U):
-				"memory");
-	} else {
-		// xrstor
-		asm volatile("xrstor %0"
-				: : "m" (*ptr),
-				"d" (MASK_ALL_32U),
-				"a" (MASK_ALL_32U):
-				"memory");
-	}
-}
-
-static void fpu_save(struct acrn_vcpu *vcpu)
-{
-	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
-
-	if (ectx->cpu_feature_xsave) {
-		xsave(vcpu);
-	} else {
-		save_fxstore_guest_area(ectx);
-	}
-}
-
-static void fpu_rstore(struct acrn_vcpu *vcpu)
-{
-	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
-
-	if (ectx->cpu_feature_xsave) {
-		xrstore(vcpu);
-	} else {
-		rstor_fxstore_guest_area(ectx);
-	}
-}
-
 /* TODO:
  * Now we have switch_out and switch_in callbacks for each thread_object, and schedule
  * will call them every thread switch. We can implement lazy context swtich , which
@@ -802,10 +711,8 @@ static void context_switch_out(struct thread_object *prev)
 	ectx->ia32_lstar = msr_read(MSR_IA32_LSTAR);
 	ectx->ia32_fmask = msr_read(MSR_IA32_FMASK);
 	ectx->ia32_kernel_gs_base = msr_read(MSR_IA32_KERNEL_GS_BASE);
-	if (!is_idle_thread(prev)) {
-		fpu_save(vcpu);
-		ectx->fpu_saved = true;
-	}
+
+	save_fxstore_guest_area(ectx);
 
 	vcpu->running = false;
 }
@@ -815,10 +722,6 @@ static void context_switch_in(struct thread_object *next)
 	struct acrn_vcpu *vcpu = list_entry(next, struct acrn_vcpu, thread_obj);
 	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
 
-	if (!is_idle_thread(next) && ectx->fpu_saved) {
-		fpu_rstore(vcpu);
-		ectx->fpu_saved = false;
-	}
 	switch_vmcs(vcpu);
 
 	msr_write(MSR_IA32_STAR, ectx->ia32_star);
@@ -826,6 +729,7 @@ static void context_switch_in(struct thread_object *next)
 	msr_write(MSR_IA32_FMASK, ectx->ia32_fmask);
 	msr_write(MSR_IA32_KERNEL_GS_BASE, ectx->ia32_kernel_gs_base);
 
+	rstor_fxstore_guest_area(ectx);
 
 	vcpu->running = true;
 }

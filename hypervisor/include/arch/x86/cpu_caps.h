@@ -24,8 +24,7 @@
 #define	FEAT_8000_0001_EDX	6U     /* CPUID[8000_0001].EDX */
 #define	FEAT_8000_0007_EDX	7U     /* CPUID[8000_0007].EDX */
 #define	FEAT_8000_0008_EBX	8U     /* CPUID[8000_0008].EBX */
-#define	FEAT_D_1_EAX		9U     /* CPUID[D,1].EAX */
-#define	FEATURE_WORDS		10U
+#define	FEATURE_WORDS		9U
 
 struct cpuinfo_x86 {
 	uint8_t family, model;

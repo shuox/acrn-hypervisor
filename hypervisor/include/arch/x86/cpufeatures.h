@@ -94,10 +94,4 @@
 /* Intel-defined CPU features, CPUID level 0x80000007 (EDX)*/
 #define X86_FEATURE_INVA_TSC	((FEAT_8000_0007_EDX << 5U) + 8U)
 
-/* Intel-defined CPU features, CPUID level 0x0000000D, sub 0x1 */
-#define X86_FEATURE_XSAVEOPT	((FEAT_D_1_EAX << 5U) + 0U)
-#define X86_FEATURE_XSAVEC	((FEAT_D_1_EAX << 5U) + 1U)
-#define X86_FEATURE_XGETBV1	((FEAT_D_1_EAX << 5U) + 2U)
-#define X86_FEATURE_XSAVES	((FEAT_D_1_EAX << 5U) + 3U)
-
 #endif /* CPUFEATURES_H */

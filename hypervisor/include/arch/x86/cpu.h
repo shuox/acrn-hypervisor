@@ -150,7 +150,7 @@
 
 /* Number of GPRs saved / restored for guest in VCPU structure */
 #define NUM_GPRS                            16U
-#define GUEST_STATE_AREA_SIZE               4096U
+#define GUEST_STATE_AREA_SIZE               512
 
 #define	CPU_CONTEXT_OFFSET_RAX			0U
 #define	CPU_CONTEXT_OFFSET_RCX			8U
@@ -379,14 +379,8 @@ struct ext_context {
 
 	/* The 512 bytes area to save the FPU/MMX/SSE states for the guest */
 	uint64_t
-	xstore_guest_area[VMX_CPU_S_FXSAVE_GUEST_AREA_SIZE / sizeof(uint64_t)]
-	__aligned(64);
-	uint64_t xcr0;
-	uint64_t xss;
-	bool cpu_feature_xsave;
-	bool cpu_feature_xsaves;
-	bool cpu_feature_xsaveopt;
-	bool fpu_saved;
+	fxstore_guest_area[VMX_CPU_S_FXSAVE_GUEST_AREA_SIZE / sizeof(uint64_t)]
+	__aligned(16);
 };
 
 struct cpu_context {
@@ -613,14 +607,6 @@ static inline void write_xcr(int32_t reg, uint64_t val)
 	asm volatile("xsetbv" : : "c" (reg), "a" ((uint32_t)val), "d" ((uint32_t)(val >> 32U)));
 }
 
-/* only support xcr0 */
-static inline uint64_t read_xcr(int32_t reg)
-{
-	uint32_t  xcrl, xcrh;
-
-	asm volatile ("xgetbv ": "=a"(xcrl), "=d"(xcrh) : "c" (reg));
-	return (((uint64_t)xcrh << 32U) | xcrl);
-}
 /*
  * stac/clac pair is used to access guest's memory protected by SMAP,
  * following below flow:
