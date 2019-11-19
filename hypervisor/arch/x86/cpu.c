@@ -483,14 +483,26 @@ static void pcpu_xsave_init(void)
 		CPU_CR_WRITE(cr4, val64);
 
 		if (get_pcpu_id() == BOOT_CPU_ID) {
-			uint32_t ecx, unused;
+			uint32_t eax, ecx, edx, unused;
 			cpuid(CPUID_FEATURES, &unused, &unused, &ecx, &unused);
-
+			cpu_info = get_pcpu_info();
 			/* if set, update it */
 			if ((ecx & CPUID_ECX_OSXSAVE) != 0U) {
-				cpu_info = get_pcpu_info();
 				cpu_info->cpuid_leaves[FEAT_1_ECX] |= CPUID_ECX_OSXSAVE;
 			}
+			/* get xsave feature set */
+			cpuid_subleaf(CPUID_XSAVE_FEATURES, 0U, &eax,
+				&unused,
+				&unused,
+				&edx);
+			cpu_info->cpuid_leaves[FEAT_D_0_EAX_EDX] =
+				(eax + ((uint64_t)edx << 32U)) & XSAVE_COMPONENTS_MASK;
+
+			cpuid_subleaf(CPUID_XSAVE_FEATURES, 1U, &eax,
+				&unused,
+				&unused,
+				&unused);
+			cpu_info->cpuid_leaves[FEAT_D_1_EAX] = eax;
 		}
 	}
 }

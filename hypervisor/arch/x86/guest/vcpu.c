@@ -17,6 +17,7 @@
 #include <vmcs.h>
 #include <mmu.h>
 #include <sprintf.h>
+#include <cpufeatures.h>
 
 /* stack_frame is linked with the sequence of stack operation in arch_switch_to() */
 struct stack_frame {
@@ -227,6 +228,17 @@ static void set_vcpu_mode(struct acrn_vcpu *vcpu, uint32_t cs_attr, uint64_t ia3
 	}
 }
 
+static void init_xsave(struct acrn_vcpu *vcpu)
+{
+	struct cpuinfo_x86 *cpu_info = get_pcpu_info();
+	struct ext_context *ectx = &(vcpu->arch.contexts[vcpu->arch.cur_context].ext_ctx);
+
+	ectx->xcr0 = cpu_info->cpuid_leaves[FEAT_D_0_EAX_EDX];
+	if (pcpu_has_cap(X86_FEATURE_XSAVES)) {
+		ectx->xss = msr_read(MSR_IA32_XSS);
+		ectx->xs_area.xsave_hdr.hdr.xcomp_bv |= XSAVE_COMPACTED_FORMAT;
+	}
+}
 void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_vcpu_regs *vcpu_regs)
 {
 	struct ext_context *ectx;
@@ -446,6 +458,7 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 		vcpu->arch.nr_sipi = 0U;
 		vcpu->state = VCPU_INIT;
 
+		init_xsave(vcpu);
 		reset_vcpu_regs(vcpu);
 		(void)memset((void *)&vcpu->req, 0U, sizeof(struct io_request));
 		vm->hw.created_vcpus++;
@@ -696,6 +709,80 @@ void resume_vcpu(struct acrn_vcpu *vcpu)
 	}
 }
 
+static inline void fxsave(struct ext_context *ext_ctx)
+{
+       asm volatile("fxsave (%0)"
+                       : : "r" (ext_ctx->xs_area.legacy_region) : "memory");
+}
+
+static inline void fxrstor(const struct ext_context *ext_ctx)
+{
+       asm volatile("fxrstor (%0)" : : "r" (ext_ctx->xs_area.legacy_region));
+}
+
+#define MASK_ALL_32U 0xFFFFFFFFU
+static void xsave(struct ext_context *ectx)
+{
+	ectx->xcr0 = read_xcr(0);
+	if (pcpu_has_cap(X86_FEATURE_XSAVES)) {
+		ectx->xss = msr_read(MSR_IA32_XSS);
+		asm volatile("xsaves %0"
+				: : "m" (ectx->xs_area),
+				"d" (MASK_ALL_32U),
+				"a" (MASK_ALL_32U):
+				"memory");
+	} else if (pcpu_has_cap(X86_FEATURE_XSAVEOPT)) {
+		asm volatile("xsaveopt %0"
+				: : "m" (ectx->xs_area),
+				"d" (MASK_ALL_32U),
+				"a" (MASK_ALL_32U):
+				"memory");
+	} else {
+		asm volatile("xsave %0"
+				: : "m" (ectx->xs_area),
+				"d" (MASK_ALL_32U),
+				"a" (MASK_ALL_32U):
+				"memory");
+	}
+}
+
+static void xrstor(const struct ext_context *ectx)
+{
+	write_xcr(0, ectx->xcr0);
+	if (pcpu_has_cap(X86_FEATURE_XSAVES) != 0U) {
+		msr_write(MSR_IA32_XSS, ectx->xss);
+		asm volatile("xrstors %0"
+				: : "m" (ectx->xs_area),
+				"d" (MASK_ALL_32U),
+				"a" (MASK_ALL_32U):
+				"memory");
+	} else {
+		asm volatile("xrstor %0"
+				: : "m" (ectx->xs_area),
+				"d" (MASK_ALL_32U),
+				"a" (MASK_ALL_32U):
+				"memory");
+	}
+}
+
+void save_xsave_area(struct ext_context *ectx)
+{
+	if (pcpu_has_cap(X86_FEATURE_XSAVE)) {
+		xsave(ectx);
+	} else {
+		fxsave(ectx);
+	}
+}
+
+void rstore_xsave_area(struct ext_context *ectx)
+{
+	if (pcpu_has_cap(X86_FEATURE_XSAVE)) {
+		xrstor(ectx);
+	} else {
+		fxrstor(ectx);
+	}
+}
+
 /* TODO:
  * Now we have switch_out and switch_in callbacks for each thread_object, and schedule
  * will call them every thread switch. We can implement lazy context swtich , which
@@ -712,7 +799,7 @@ static void context_switch_out(struct thread_object *prev)
 	ectx->ia32_fmask = msr_read(MSR_IA32_FMASK);
 	ectx->ia32_kernel_gs_base = msr_read(MSR_IA32_KERNEL_GS_BASE);
 
-	save_fxstore_guest_area(ectx);
+	save_xsave_area(ectx);
 
 	vcpu->running = false;
 }
@@ -729,7 +816,7 @@ static void context_switch_in(struct thread_object *next)
 	msr_write(MSR_IA32_FMASK, ectx->ia32_fmask);
 	msr_write(MSR_IA32_KERNEL_GS_BASE, ectx->ia32_kernel_gs_base);
 
-	rstor_fxstore_guest_area(ectx);
+	rstore_xsave_area(ectx);
 
 	vcpu->running = true;
 }
