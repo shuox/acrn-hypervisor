@@ -155,25 +155,21 @@ static struct thread_object *sched_rr_pick_next(struct sched_control *ctl)
 
 static void sched_rr_sleep(struct thread_object *obj)
 {
-	struct sched_rr_control *rr_ctl = &per_cpu(sched_rr_ctl, obj->pcpu_id);
-
 	queue_remove(obj);
-	rr_ctl->active_obj_num--;
-	if (rr_ctl->active_obj_num == 1U) {
-		del_timer(&rr_ctl->tick_timer);
-	}
 }
 
 static void sched_rr_wake(struct thread_object *obj)
 {
 	struct sched_rr_control *rr_ctl = &per_cpu(sched_rr_ctl, obj->pcpu_id);
 
-	if (rr_ctl->active_obj_num == 1U) {
-		if (add_timer(&rr_ctl->tick_timer) < 0) {
-			pr_err("Failed to add schedule tick timer!");
+	if (rr_ctl->active_obj_num < 2U) {
+		rr_ctl->active_obj_num++;
+		if (rr_ctl->active_obj_num == 2U) {
+			if (add_timer(&rr_ctl->tick_timer) < 0) {
+				pr_err("Failed to add schedule tick timer!");
+			}
 		}
 	}
-	rr_ctl->active_obj_num++;
 	runqueue_add_head(obj);
 }
 
