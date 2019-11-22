@@ -79,6 +79,9 @@ void init_sched(uint16_t pcpu_id)
 #ifdef CONFIG_SCHED_IORR
 	ctl->scheduler = &sched_rr;
 #endif
+#ifdef CONFIG_SCHED_CFS
+	ctl->scheduler = &sched_cfs;
+#endif
 	if (ctl->scheduler->init != NULL) {
 		ctl->scheduler->init(ctl);
 	}
@@ -271,7 +274,16 @@ void resume_sched(void)
 
 void yield(void)
 {
+	uint16_t pcpu_id = get_pcpu_id();
+	struct sched_control *ctl = &per_cpu(sched_ctl, pcpu_id);
+	uint64_t rflag;
+
+	obtain_schedule_lock(pcpu_id, &rflag);
+	if (ctl->scheduler->yield != NULL) {
+		ctl->scheduler->yield(ctl);
+	}
 	make_reschedule_request(get_pcpu_id(), DEL_MODE_IPI);
+	release_schedule_lock(pcpu_id, rflag);
 }
 
 void run_thread(struct thread_object *obj)
