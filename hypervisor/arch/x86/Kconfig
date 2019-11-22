@@ -39,7 +39,7 @@ endchoice
 
 choice
 	prompt "ACRN Scheduler"
-	default SCHED_NOOP
+	default SCHED_CFS
 	help
 	  Select the CPU scheduler to be used by the hypervisor
 
@@ -54,6 +54,11 @@ config SCHED_IORR
         help
           IORR (IO sensitive Round Robin) scheduler supports multipule vCPUs running on
 	  on one pCPU, and they will be scheduled by a IO sensitive round robin policy.
+
+config SCHED_CFS
+        bool "CFS scheduler"
+	help
+	  simple CFS implementation.
 
 endchoice
 

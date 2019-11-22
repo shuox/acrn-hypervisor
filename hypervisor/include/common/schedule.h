@@ -82,6 +82,7 @@ struct acrn_scheduler {
 };
 extern struct acrn_scheduler sched_noop;
 extern struct acrn_scheduler sched_iorr;
+extern struct acrn_scheduler sched_cfs;
 
 struct sched_noop_control {
 	struct thread_object *noop_thread_obj;
@@ -90,6 +91,16 @@ struct sched_noop_control {
 struct sched_iorr_control {
 	struct list_head runqueue;
 	struct hv_timer tick_timer;
+};
+
+struct sched_cfs_control {
+	struct list_head runqueue;
+	uint64_t min_vruntime;
+	uint64_t max_vruntime;
+	uint32_t nr_active;
+	uint32_t rq_weight;
+
+	struct hv_timer sched_timer;
 };
 
 bool is_idle_thread(const struct thread_object *obj);
