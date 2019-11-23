@@ -77,6 +77,8 @@ struct acrn_scheduler {
 	void	(*deinit_data)(struct thread_object *obj);
 	/* deinit scheduler */
 	void	(*deinit)(struct sched_control *ctl);
+
+	void    (*dump)(struct sched_control *ctl);
 };
 extern struct acrn_scheduler sched_noop;
 extern struct acrn_scheduler sched_rr;
