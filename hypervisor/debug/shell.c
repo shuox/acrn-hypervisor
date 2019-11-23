@@ -21,6 +21,7 @@
 #include <version.h>
 #include <shell.h>
 #include <vmcs.h>
+#include <schedule.h>
 
 #define TEMP_STR_SIZE		60U
 #define MAX_STR_SIZE		256U
@@ -41,6 +42,7 @@ static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv);
 static int32_t shell_vcpu_dumpreg(int32_t argc, char **argv);
 static int32_t shell_dump_host_mem(int32_t argc, char **argv);
 static int32_t shell_dump_guest_mem(int32_t argc, char **argv);
+static int32_t shell_sched_dump(int32_t argc, char **argv);
 static int32_t shell_to_vm_console(int32_t argc, char **argv);
 static int32_t shell_show_cpu_int(__unused int32_t argc, __unused char **argv);
 static int32_t shell_show_ptdev_info(__unused int32_t argc, __unused char **argv);
@@ -82,6 +84,12 @@ static struct shell_cmd shell_cmds[] = {
 		.cmd_param	= SHELL_CMD_VCPU_DUMPREG_PARAM,
 		.help_str	= SHELL_CMD_VCPU_DUMPREG_HELP,
 		.fcn		= shell_vcpu_dumpreg,
+	},
+        {
+               .str            = SHELL_CMD_SCHED_DUMP,
+               .cmd_param      = SHELL_CMD_SCHED_DUMP_PARAM,
+               .help_str       = SHELL_CMD_SCHED_DUMP_HELP,
+               .fcn            = shell_sched_dump,
 	},
 	{
 		.str		= SHELL_CMD_DUMP_HOST_MEM,
@@ -1452,4 +1460,49 @@ static int32_t shell_wrmsr(int32_t argc, char **argv)
 	}
 
 	return ret;
+}
+
+uint64_t sched_switch_start[4];
+uint64_t sched_switch_total[4];
+uint64_t sched_switch_count[4];
+
+void dump_sched(uint16_t pcpu_id)
+{
+	struct sched_control *ctl = &per_cpu(sched_ctl, pcpu_id);
+	struct acrn_scheduler *scheduler = ctl->scheduler;
+	uint64_t now = rdtsc();
+
+	pr_acrnlog("Dump scheduling statistics for pcpu%u", pcpu_id);
+	pr_acrnlog("Total schedule count: %lld  total_cycles[%lld] avg[%lld] overhead[%d.%d%], now[%lld]",
+			sched_switch_count[pcpu_id], sched_switch_total[pcpu_id],
+			sched_switch_total[pcpu_id] / (sched_switch_count[pcpu_id] == 0 ? 1 : sched_switch_count[pcpu_id]),
+			sched_switch_total[pcpu_id] * 1000000 / now / 10000,
+			(sched_switch_total[pcpu_id] * 1000000 % now) / 10000, now);
+	scheduler->dump(ctl);
+}
+
+static int32_t shell_sched_dump(int32_t argc, char **argv)
+{
+	uint16_t pcpu_id;
+	int32_t status = 0;
+	int i;
+
+	if (argc != 2) {
+		for (i = 0; i < get_pcpu_nums(); i++) {
+			dump_sched(i);
+		}
+		goto out;
+	}
+	pcpu_id = (uint16_t)strtol_deci(argv[1]);
+
+	if (pcpu_id >= get_pcpu_nums()) {
+		shell_puts("pcpu id is out of range\r\n");
+		status = -EINVAL;
+		goto out;
+	}
+
+	dump_sched(pcpu_id);
+
+out:
+	return status;
 }

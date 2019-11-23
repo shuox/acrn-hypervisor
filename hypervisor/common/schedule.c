@@ -152,6 +152,9 @@ bool need_reschedule(uint16_t pcpu_id)
 	return bitmap_test(NEED_RESCHEDULE, &ctl->flags);
 }
 
+extern uint64_t sched_switch_start[4];
+extern uint64_t sched_switch_total[4];
+extern uint64_t sched_switch_count[4];
 void schedule(void)
 {
 	uint16_t pcpu_id = get_pcpu_id();
@@ -160,6 +163,7 @@ void schedule(void)
 	struct thread_object *prev = ctl->curr_obj;
 	uint64_t rflag;
 
+	sched_switch_start[pcpu_id] = rdtsc();
 	obtain_schedule_lock(pcpu_id, &rflag);
 	if (ctl->scheduler->pick_next != NULL) {
 		next = ctl->scheduler->pick_next(ctl);
@@ -185,6 +189,8 @@ void schedule(void)
 		}
 
 		arch_switch_to(&prev->host_sp, &next->host_sp);
+		sched_switch_total[pcpu_id] += rdtsc() - sched_switch_start[pcpu_id];
+		sched_switch_count[pcpu_id] ++;
 	}
 }
 
