@@ -116,8 +116,8 @@ void vprintf(const char *fmt, va_list args);
 	} while (0)
 
 #define panic(...) 							\
-	do { pr_fatal("PANIC: %s line: %d\n", __func__, __LINE__);	\
-		pr_fatal(__VA_ARGS__); 					\
+	do { printf("PANIC: %s line: %d\n", __func__, __LINE__);	\
+		printf(__VA_ARGS__); 					\
 		while (1) { asm_pause(); }; } while (0)
 
 #endif /* LOGMSG_H */

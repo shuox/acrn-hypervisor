@@ -40,7 +40,7 @@ void do_logmsg(uint32_t severity, const char *fmt, ...)
 	bool do_mem_log;
 	bool do_npk_log;
 	char *buffer;
-	struct sched_object *current;
+	struct thread_object *current;
 
 	do_console_log = (((logmsg_ctl.flags & LOG_FLAG_STDOUT) != 0U) && (severity <= console_loglevel));
 	do_mem_log = (((logmsg_ctl.flags & LOG_FLAG_MEMORY) != 0U) && (severity <= mem_loglevel));
