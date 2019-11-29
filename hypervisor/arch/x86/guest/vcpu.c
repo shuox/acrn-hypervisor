@@ -895,3 +895,37 @@ bool is_lapic_pt_enabled(struct acrn_vcpu *vcpu)
 {
 	return ((is_x2apic_enabled(vcpu_vlapic(vcpu))) && (is_lapic_pt_configured(vcpu->vm)));
 }
+
+struct vcpu_smpcall_data {
+	smp_call_func_t func;
+	struct acrn_vcpu *vcpu;
+	void *data;
+};
+
+static void vcpu_smpcall_handler(void *data)
+{
+	struct vcpu_smpcall_data *vdata = data;
+	uint16_t pcpu_id = get_pcpu_id();
+	struct acrn_vcpu *vcpu, *curr;
+
+	curr = get_running_vcpu(pcpu_id);
+	vcpu = vdata->vcpu;
+	switch_vmcs(vcpu);
+	if (vdata->func)
+		vdata->func(vdata->data);
+	switch_vmcs(curr);
+}
+
+/*
+ *@pre: vcpu != NULL
+ */
+void vcpu_smp_call_function(struct acrn_vcpu *vcpu, smp_call_func_t func, void *data)
+{
+	struct vcpu_smpcall_data vdata;
+	uint16_t pcpu_id = pcpuid_from_vcpu(vcpu);
+
+	vdata.func = func;
+	vdata.data = data;
+	vdata.vcpu = vcpu;
+	smp_call_function(1U << pcpu_id, vcpu_smpcall_handler, &vdata);
+}

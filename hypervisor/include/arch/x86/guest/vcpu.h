@@ -26,6 +26,7 @@
 #include <msr.h>
 #include <cpu.h>
 #include <instr_emul.h>
+#include <irq.h>
 
 /**
  * @brief vcpu
@@ -549,6 +550,7 @@ struct acrn_vcpu* get_ever_run_vcpu(uint16_t pcpu_id);
 void save_xsave_area(struct ext_context *ectx);
 void rstore_xsave_area(struct ext_context *ectx);
 
+void vcpu_smp_call_function(struct acrn_vcpu *vcpu, smp_call_func_t func, void *data);
 /**
  * @brief create a vcpu for the target vm
  *
