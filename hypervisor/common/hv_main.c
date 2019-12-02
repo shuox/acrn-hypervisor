@@ -40,6 +40,7 @@ void vcpu_thread(struct thread_object *obj)
 			continue;
 		}
 
+		vcpu->block_flags = 0UL;
 		profiling_vmenter_handler(vcpu);
 
 		TRACE_2L(TRACE_VM_ENTER, 0UL, 0UL);

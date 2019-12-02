@@ -465,6 +465,8 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 		vcpu->running = false;
 		vcpu->arch.nr_sipi = 0U;
 		vcpu->state = VCPU_INIT;
+		spinlock_init(&vcpu->vcpu_lock);
+		vcpu->block_flags = 0U;
 
 		init_xsave(vcpu);
 		reset_vcpu_regs(vcpu);

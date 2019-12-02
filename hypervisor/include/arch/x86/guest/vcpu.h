@@ -240,6 +240,8 @@ struct acrn_vcpu_arch {
 
 struct acrn_vm;
 struct acrn_vcpu {
+#define	VCPU_DONT_HALT		0x1UL
+#define	VCPU_IS_HALTING		0x2UL
 	uint8_t stack[CONFIG_STACK_SIZE] __aligned(16);
 
 	/* Architecture specific definitions for this VCPU */
@@ -254,6 +256,9 @@ struct acrn_vcpu {
 	struct thread_object thread_obj;
 	bool launched; /* Whether the vcpu is launched on target pcpu */
 	volatile bool running; /* vcpu is picked up and run? */
+
+	spinlock_t vcpu_lock;
+	uint32_t block_flags;
 
 	struct instr_emul_ctxt inst_ctxt;
 	struct io_request req; /* used by io/ept emulation */

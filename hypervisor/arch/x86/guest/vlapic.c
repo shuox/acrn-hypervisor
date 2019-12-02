@@ -541,6 +541,14 @@ static void apicv_basic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector,
 	struct lapic_regs *lapic;
 	struct lapic_reg *irrptr;
 	uint32_t idx;
+	uint64_t flags;
+
+	spinlock_irqsave_obtain(&vlapic->vcpu->vcpu_lock, &flags);
+	vlapic->vcpu->block_flags |= VCPU_DONT_HALT;
+	if ((vlapic->vcpu->block_flags & VCPU_IS_HALTING) != 0UL) {
+		resume_vcpu(vlapic->vcpu);
+	}
+	spinlock_irqrestore_release(&vlapic->vcpu->vcpu_lock, flags);
 
 	lapic = &(vlapic->apic_page);
 	idx = vector >> 5U;
@@ -556,6 +564,8 @@ static void apicv_basic_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector,
 
 static void apicv_advanced_accept_intr(struct acrn_vlapic *vlapic, uint32_t vector, bool level)
 {
+	uint64_t flags;
+
 	/* update TMR if interrupt trigger mode has changed */
 	vlapic_set_tmr(vlapic, vector, level);
 
@@ -575,6 +585,13 @@ static void apicv_advanced_accept_intr(struct acrn_vlapic *vlapic, uint32_t vect
 		if (get_pcpu_id() != pcpuid_from_vcpu(vlapic->vcpu)) {
 			apicv_post_intr(pcpuid_from_vcpu(vlapic->vcpu));
 		}
+
+		spinlock_irqsave_obtain(&vlapic->vcpu->vcpu_lock, &flags);
+		vlapic->vcpu->block_flags |= VCPU_DONT_HALT;
+		if ((vlapic->vcpu->block_flags & VCPU_IS_HALTING) != 0UL) {
+			resume_vcpu(vlapic->vcpu);
+		}
+		spinlock_irqrestore_release(&vlapic->vcpu->vcpu_lock, flags);
 	}
 }
 
@@ -1866,6 +1883,7 @@ vlapic_set_intr(struct acrn_vcpu *vcpu, uint32_t vector, bool level)
 	struct acrn_vlapic *vlapic;
 
 	vlapic = vcpu_vlapic(vcpu);
+
 	if (vector < 16U) {
 		vlapic_set_error(vlapic, APIC_ESR_RECEIVE_ILLEGAL_VECTOR);
 		dev_dbg(ACRN_DBG_LAPIC,
