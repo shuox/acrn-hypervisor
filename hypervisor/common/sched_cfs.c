@@ -61,11 +61,12 @@ static uint64_t get_runtime_in_period(struct thread_object *obj, uint64_t now)
 	uint64_t vruntime_used = 0UL;
 
 	TRACE_4I(TRACE_VMEXIT_CFS_OBJ_VRUNTIME, (uint32_t)data->vruntime_in_period, (uint32_t)data->period, (uint32_t)curr_period, (uint32_t)period_rest);
-	if (data->period == curr_period) {
+	if (!is_idle_thread(obj) && data->period == curr_period) {
 		vruntime_used = data->vruntime_in_period;
 	}
 	/* get the right runtime in this period of the obj */
-	return min(((CONFIG_DEFAULT_SCHED_PERIOD - vruntime_used) * data->weight / cfs_ctl->rq_weight), period_rest);
+	return is_idle_thread(obj) ? period_rest :
+		min(((CONFIG_DEFAULT_SCHED_PERIOD - vruntime_used) * data->weight / cfs_ctl->rq_weight), period_rest);
 }
 
 static void update_ctl_vruntimes(struct sched_cfs_control *cfs_ctl)
@@ -105,6 +106,7 @@ static void runqueue_add(struct thread_object *obj)
 			iter_data = (struct sched_cfs_data *)iter->data;
 			if (data->vruntime < iter_data->vruntime) {
 				list_add(&data->list, get_rq(obj));
+				break;
 			}
 		}
 		if (!is_inqueue(obj)) {
@@ -201,12 +203,13 @@ static struct thread_object *sched_cfs_pick_next(struct sched_control *ctl)
 {
 	struct sched_cfs_control *cfs_ctl = (struct sched_cfs_control *)ctl->priv;
 	struct thread_object *current = NULL;
+	struct thread_object *next = NULL;
+	struct thread_object *t = NULL;
+	struct sched_cfs_data *t_data, *next_data;
 	struct list_head *pos;
-	struct thread_object *next = NULL, *yield_thread = NULL, *lack_vruntime_thread = NULL;
-	struct sched_cfs_data *next_data;
 	uint64_t now = rdtsc();
-	uint64_t runtime;
-	bool need_sched_timer = false;
+	uint64_t runtime = 0UL;
+	int loop_times = 2;
 
 	current = ctl->curr_obj;
 
@@ -217,65 +220,45 @@ static struct thread_object *sched_cfs_pick_next(struct sched_control *ctl)
 
 	/* Pick the next runnable sched object */
 	if (!list_empty(&cfs_ctl->runqueue)) {
-		/* if we have only one yielded thread, then pick it and not sched_timer needed */
-		list_for_each(pos, &cfs_ctl->runqueue) {
-			next = list_entry(pos, struct thread_object, data);
-			next_data = (struct sched_cfs_data *)next->data;
+		for (; next == NULL && loop_times > 0; loop_times--) {
+			list_for_each(pos, &cfs_ctl->runqueue) {
+				t = list_entry(pos, struct thread_object, data);
+				t_data = (struct sched_cfs_data *)t->data;
 
-			/* update the cached cfs_control rq_weight */
-			next_data->rq_weight = cfs_ctl->rq_weight;
-
-			if (bitmap_test_and_clear_lock(CFS_YIELD, &next_data->flags)) {
-				if (yield_thread == NULL) {
-					yield_thread = next;
+				if (bitmap_test_and_clear_lock(CFS_YIELD, &t_data->flags)) {
+					continue;
 				}
-				next = NULL;
-				continue;
-			}
 
-			runtime = get_runtime_in_period(next, now);
-			TRACE_2L(TRACE_VMEXIT_CFS_RUNTIME, runtime, *(uint64_t *)next->name);
-			if (runtime == 0UL) {
-				if (lack_vruntime_thread == NULL) {
-					lack_vruntime_thread = next;
+				runtime = get_runtime_in_period(t, now);
+				TRACE_2L(TRACE_VMEXIT_CFS_RUNTIME, runtime, *(uint64_t *)t->name);
+				if (runtime == 0UL) {
+					continue;
+				} else {
+					next = t;
+					break;
 				}
-				next = NULL;
-				continue;
 			}
-			if (cfs_ctl->nr_active > 1UL) {
-				cfs_ctl->sched_timer.fire_tsc = now + us_to_ticks(runtime);
-				need_sched_timer = true;
-				TRACE_2L(TRACE_VMEXIT_CFS_NEW_TIMER1, cfs_ctl->sched_timer.fire_tsc, now);
-			}
-			break;
 		}
-	} else {
-		/* no runnable thread, pick the idle */
-		next = &get_cpu_var(idle);
 	}
 
-	/* don't have ready thread to run, pick yield one firstly, then idle  */
 	if (next == NULL) {
-		if (yield_thread != NULL) {
-			next = yield_thread;
-		} else if (lack_vruntime_thread != NULL) {
-			next = lack_vruntime_thread;
-		}
-
-		TRACE_2L(TRACE_VMEXIT_CFS_SECNEXT, 0UL, *(uint64_t *)next->name);
-		if (cfs_ctl->nr_active > 1UL) {
-			cfs_ctl->sched_timer.fire_tsc = now +
-				us_to_ticks(CONFIG_DEFAULT_SCHED_PERIOD - (ticks_to_us(now) % CONFIG_DEFAULT_SCHED_PERIOD));
-			TRACE_2L(TRACE_VMEXIT_CFS_NEW_TIMER2, cfs_ctl->sched_timer.fire_tsc, now);
-			need_sched_timer = true;
-		}
+		/* no runnable thread, pick the idle */
+		next = &get_cpu_var(idle);
+		runtime = get_runtime_in_period(next, now);
+	} else {
+		/* update the cached cfs_control rq_weight */
+		next_data = (struct sched_cfs_data *)next->data;
+		next_data->rq_weight = cfs_ctl->rq_weight;
 	}
 
 	del_timer(&cfs_ctl->sched_timer);
-	if (need_sched_timer) {
+	/* launch the sched_timer if there are multiple waiting runnable threads */
+	if (((cfs_ctl->nr_active > 1UL) || (cfs_ctl->nr_active > 0UL && is_idle_thread(next))) && (runtime != 0UL)) {
+		cfs_ctl->sched_timer.fire_tsc = now + us_to_ticks(runtime);
 		if (add_timer(&cfs_ctl->sched_timer) < 0) {
 			pr_err("Failed to add schedule tick timer!");
 		}
+		TRACE_2L(TRACE_VMEXIT_CFS_NEW_TIMER1, cfs_ctl->sched_timer.fire_tsc, now);
 	}
 
 	return next;

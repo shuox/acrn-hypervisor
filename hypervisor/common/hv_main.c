@@ -102,6 +102,7 @@ void run_idle_thread(void)
 	snprintf(idle_name, 16U, "idle%hu", pcpu_id);
 	(void)strncpy_s(idle->name, 16U, idle_name, 16U);
 	idle->pcpu_id = pcpu_id;
+	idle->sched_ctl = &per_cpu(sched_ctl, pcpu_id);
 	idle->thread_entry = default_idle;
 	idle->switch_out = NULL;
 	idle->switch_in = NULL;
