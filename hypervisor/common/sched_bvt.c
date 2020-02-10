@@ -111,8 +111,55 @@ int64_t get_svt(struct thread_object *obj)
 	return svt_mcu;
 }
 
-static void sched_tick_handler(__unused void *param)
+static bool is_only_one_inqueue(struct list_head *node)
 {
+	return !list_empty(node) && (get_prev_node(node) == get_next_node(node));
+}
+
+static bool can_be_preempted(struct thread_object *obj, struct sched_bvt_control *bvt_ctl)
+{
+	struct sched_bvt_data *data;
+	bool need = false;
+
+	data = (struct sched_bvt_data *)obj->data;
+
+	if (is_idle_thread(obj)) {
+		if (!list_empty(&bvt_ctl->runqueue)) {
+			need = true;
+		}
+	} else {
+		if (data->run_mcu < 0) {
+			if (!is_only_one_inqueue(&data->list)) {
+				need = true;
+			}
+		}
+	}
+	return need;
+}
+
+static void sched_tick_handler(void *param)
+{
+	struct sched_control  *ctl = (struct sched_control *)param;
+	struct sched_bvt_control *bvt_ctl = (struct sched_bvt_control *)ctl->priv;
+	struct sched_bvt_data *data;
+	struct thread_object *current;
+	uint16_t pcpu_id = get_pcpu_id();
+	uint64_t rflags;
+
+	obtain_schedule_lock(pcpu_id, &rflags);
+	current = ctl->curr_obj;
+
+	if (current != NULL ) {
+		data = (struct sched_bvt_data *)current->data;
+		/* only non-idle thread need to consume run_mcu */
+		if (!is_idle_thread(current) && !is_only_one_inqueue(&data->list)) {
+			data->run_mcu -= 1;
+		}
+		if (can_be_preempted(current, bvt_ctl)) {
+			make_reschedule_request(pcpu_id, DEL_MODE_IPI);
+		}
+	}
+	release_schedule_lock(pcpu_id, rflags);
 }
 
 int sched_bvt_init(struct sched_control *ctl)

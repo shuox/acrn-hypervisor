@@ -108,6 +108,16 @@ static inline void list_splice_init(struct list_head *list,
 	}
 }
 
+static inline struct list_head *get_next_node(struct list_head *list)
+{
+	return list->next;
+}
+
+static inline struct list_head *get_prev_node(struct list_head *list)
+{
+	return list->prev;
+}
+
 #define list_entry(ptr, type, member) \
 	((type *)((char *)(ptr)-(uint64_t)(&((type *)0)->member)))
 
