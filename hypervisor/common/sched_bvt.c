@@ -26,6 +26,7 @@ struct sched_bvt_data {
 	int64_t avt_mcu;
 	/* effective virtual time */
 	int64_t evt_mcu;
+	uint64_t residual;
 
 	uint64_t start;
 };
@@ -154,9 +155,92 @@ void sched_bvt_init_data(struct thread_object *obj)
 	data->run_mcu = data->cs_allow_mcu;
 }
 
-static struct thread_object *sched_bvt_pick_next(__unused struct sched_control *ctl)
+static uint64_t v2p(uint64_t virt_time, uint64_t ratio)
 {
-	return NULL;
+	return (uint64_t)(virt_time / ratio);
+}
+
+static uint64_t p2v(uint64_t phy_time, uint64_t ratio)
+{
+	return (uint64_t)(phy_time * ratio);
+}
+
+static void update_vt(struct thread_object *obj)
+{
+	struct sched_bvt_data *data;
+	uint64_t now = rdtsc();
+	uint64_t delta, delta_mcu = 0U;
+
+	data = (struct sched_bvt_data *)obj->data;
+
+	/* update current thread's avt_mcu and evt_mcu */
+	if (now > data->start) {
+		delta = now - data->start + data->residual;
+		delta_mcu = (uint64_t)(delta / data->mcu);
+		data->residual = delta % data->mcu;
+	}
+	data->avt_mcu += p2v(delta_mcu, data->mcu_ratio);
+	/* TODO: evt_mcu = avt_mcu - (warp ? warpback : 0U) */
+	data->evt_mcu = data->avt_mcu;
+
+	/* Ignore the idle object, inactive objects */
+	if (is_inqueue(obj)) {
+		runqueue_remove(obj);
+		runqueue_add(obj);
+	}
+	data->svt_mcu = get_svt(obj);
+
+}
+
+static struct thread_object *sched_bvt_pick_next(struct sched_control *ctl)
+{
+	struct sched_bvt_control *bvt_ctl = (struct sched_bvt_control *)ctl->priv;
+	struct thread_object *first_obj = NULL, *second_obj = NULL;
+	struct sched_bvt_data *first_data = NULL, *second_data = NULL;
+	struct list_head *pos;
+	struct thread_object *next = NULL;
+	struct thread_object *current = ctl->curr_obj;
+	uint64_t now = rdtsc();
+	uint64_t delta_mcu = 0U;
+
+	if (!is_idle_thread(current)) {
+		update_vt(current);
+	}
+
+	if (!list_empty(&bvt_ctl->runqueue)) {
+		list_for_each(pos, &bvt_ctl->runqueue) {
+			if (first_obj == NULL) {
+				first_obj = list_entry(pos, struct thread_object, data);
+				first_data = (struct sched_bvt_data *)first_obj->data;
+			} else {
+				second_obj = list_entry(pos, struct thread_object, data);
+				if (first_obj != second_obj) {
+					second_data = (struct sched_bvt_data *)second_obj->data;
+				}
+				break;
+			}
+		}
+		if (second_data != NULL) {
+			if (second_data->evt_mcu >= first_data->evt_mcu) {
+				delta_mcu = second_data->evt_mcu - first_data->evt_mcu;
+			} else {
+				pr_err("runqueue is not in order!!");
+			}
+			/* run_mcu is the real time the thread can run */
+			first_data->run_mcu = v2p(delta_mcu, first_data->mcu_ratio)
+				+ first_data->cs_allow_mcu;
+		} else {
+			/* there is only one object in runqueue, run_mcu will be ignored */
+			first_data->run_mcu = 0U;
+		}
+		first_data->start = now;
+		next = first_obj;
+	} else {
+		next = &get_cpu_var(idle);
+	}
+
+	return next;
+
 }
 
 static void sched_bvt_sleep(__unused struct thread_object *obj)
