@@ -30,6 +30,86 @@ struct sched_bvt_data {
 	uint64_t start;
 };
 
+/*
+ * @pre obj != NULL
+ * @pre obj->data != NULL
+ */
+bool is_inqueue(struct thread_object *obj)
+{
+	struct sched_bvt_data *data = (struct sched_bvt_data *)obj->data;
+	return !list_empty(&data->list);
+}
+
+/*
+ * @pre obj != NULL
+ * @pre obj->data != NULL
+ * @pre obj->sched_ctl != NULL
+ * @pre obj->sched_ctl->priv != NULL
+ */
+static void runqueue_add(struct thread_object *obj)
+{
+	struct sched_bvt_control *bvt_ctl =
+		(struct sched_bvt_control *)obj->sched_ctl->priv;
+	struct sched_bvt_data *data = (struct sched_bvt_data *)obj->data;
+	struct list_head *pos;
+	struct thread_object *iter_obj;
+	struct sched_bvt_data *iter_data;
+
+	/*
+	 * the earliest evt_mcu has highest priority,
+	 * the runqueue is ordered by priority.
+	 */
+
+	if (list_empty(&bvt_ctl->runqueue)) {
+		list_add(&data->list, &bvt_ctl->runqueue);
+	} else {
+		list_for_each(pos, &bvt_ctl->runqueue) {
+			iter_obj = list_entry(pos, struct thread_object, data);
+			iter_data = (struct sched_bvt_data *)iter_obj->data;
+			if (iter_data->evt_mcu > data->evt_mcu) {
+				list_add_node(&data->list, pos->prev, pos);
+				break;
+			}
+		}
+		if (!is_inqueue(obj)) {
+			list_add_tail(&data->list, &bvt_ctl->runqueue);
+		}
+	}
+}
+
+/*
+ * @pre obj != NULL
+ * @pre obj->data != NULL
+ */
+void runqueue_remove(struct thread_object *obj)
+{
+	struct sched_bvt_data *data = (struct sched_bvt_data *)obj->data;
+
+	list_del_init(&data->list);
+}
+
+/*
+ * @pre obj != NULL
+ * @pre obj->data != NULL
+ * @pre obj->sched_ctl != NULL
+ * @pre obj->sched_ctl->priv != NULL
+ */
+
+int64_t get_svt(struct thread_object *obj)
+{
+	struct sched_bvt_control *bvt_ctl = (struct sched_bvt_control *)obj->sched_ctl->priv;
+	struct sched_bvt_data *obj_data;
+	struct thread_object *tmp_obj;
+	int64_t svt_mcu = 0;
+
+	if (!list_empty(&bvt_ctl->runqueue)) {
+		tmp_obj = get_first_item(&bvt_ctl->runqueue, struct thread_object, data);
+		obj_data = (struct sched_bvt_data *)tmp_obj->data;
+		svt_mcu = obj_data->avt_mcu;
+	}
+	return svt_mcu;
+}
+
 static void sched_tick_handler(__unused void *param)
 {
 }
@@ -81,10 +161,25 @@ static struct thread_object *sched_bvt_pick_next(__unused struct sched_control *
 
 static void sched_bvt_sleep(__unused struct thread_object *obj)
 {
+	runqueue_remove(obj);
 }
 
 static void sched_bvt_wake(__unused struct thread_object *obj)
 {
+	struct sched_bvt_data *data;
+
+	/* update target not current thread's avt_mcu and evt_mcu */
+	data = (struct sched_bvt_data *)obj->data;
+	/* prevents a thread from claiming an excessive share
+	 * of the CPU after sleeping for a long time as might happen
+	 * if there was no adjustment */
+	data->svt_mcu = get_svt(obj);
+	data->avt_mcu = (data->avt_mcu > data->svt_mcu) ? data->avt_mcu : data->svt_mcu;
+	/* TODO: evt_mcu = avt_mcu - (warp ? warpback : 0U) */
+	data->evt_mcu = data->avt_mcu;
+	/* add to runqueue in order */
+	runqueue_add(obj);
+
 }
 
 struct acrn_scheduler sched_bvt = {
