@@ -203,14 +203,14 @@ handle_one_drhd(struct acpi_dmar_hardware_unit *acpi_drhd,
 		cp = (char *)acpi_drhd + acpi_drhd->header.length - remaining;
 
 		consumed = handle_dmar_devscope(dev_scope, cp, remaining);
-
+/*
 		if (((drhd->segment << 16U) |
 		     (dev_scope->bus << 8U) |
 		     dev_scope->devfun) == CONFIG_GPU_SBDF) {
 			ASSERT(dev_count == 1, "no dedicated iommu for gpu");
 			drhd->ignore = true;
 		}
-
+*/
 		if (consumed <= 0)
 			break;
 
