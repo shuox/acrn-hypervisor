@@ -57,24 +57,15 @@
  */
 #define	VM_MMAP_GUARD_SIZE	(4 * MB)
 
-#define SUPPORT_VHM_API_VERSION_MAJOR	1
-#define SUPPORT_VHM_API_VERSION_MINOR	0
-
+struct api_version api_version;
 static int
-check_api(int fd)
+get_api_version(int fd)
 {
-	struct api_version api_version;
 	int error;
 
 	error = ioctl(fd, IC_GET_API_VERSION, &api_version);
 	if (error) {
 		pr_err("failed to get vhm api version\n");
-		return -1;
-	}
-
-	if (api_version.major_version != SUPPORT_VHM_API_VERSION_MAJOR ||
-		api_version.minor_version != SUPPORT_VHM_API_VERSION_MINOR) {
-		pr_err("not support vhm api version\n");
 		return -1;
 	}
 
@@ -188,7 +179,7 @@ vm_create(const char *name, uint64_t req_buf, int *vcpu_num)
 		goto err;
 	}
 
-	if (check_api(devfd) < 0)
+	if (get_api_version(devfd) < 0)
 		goto err;
 
 	if (guest_uuid_str == NULL)
