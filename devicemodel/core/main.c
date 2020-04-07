@@ -255,11 +255,7 @@ add_cpu(struct vmctx *ctx, int vcpu_num)
 	int error;
 
 	for (i = 0; i < vcpu_num; i++) {
-		error = vm_create_vcpu(ctx, (uint16_t)i);
-		if (error != 0) {
-			pr_err("ERROR: could not create VCPU %d\n", i);
-			return error;
-		}
+		vm_create_vcpu(ctx, (uint16_t)i);
 		CPU_SET_ATOMIC(i, &cpumask);
 
 		mt_vmm_info[i].mt_ctx = ctx;
