@@ -62,7 +62,7 @@ exit = 0
 
 # structure of trace data (as output by acrntrace)
 # TSC(Q) HDR(Q) D1 D2 ...
-# HDR consists of event:48:, n_data:8:, cpu:8:
+# HDR consists of event:48:, vm_id:4:, vcpu_id:4:, n_data:4:, cpu:4:
 # event means Event ID
 # n_data means number of data in trace entry (like D1, D2, ...)
 # cpu means cpu id this trace entry belong to
@@ -91,8 +91,10 @@ def main_loop(formats, fd):
             if not line:
                 break
             event = struct.unpack(HDRREC, line)[0]
-            n_data = event >> 48 & 0xff
-            cpu = event >> 56
+            vm_id = event >> 48 & 0xf
+            vcpu_id = event >> 52 & 0xf
+            n_data = event >> 56 & 0xf
+            cpu = event >> 60
             event = event & 0xffffffffffff
 
             d1 = 0
@@ -143,6 +145,8 @@ def main_loop(formats, fd):
 
             args = {'cpu'   : cpu,
                     'tsc'   : tsc,
+                    'vm'   : vm_id,
+                    'vcpu'   : vcpu_id,
                     'event' : event,
                     '1'     : d1,
                     '2'     : d2,

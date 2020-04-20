@@ -7,6 +7,7 @@
 #include <types.h>
 #include <per_cpu.h>
 #include <trace.h>
+#include <schedule.h>
 
 #define TRACE_CUSTOM			0xFCU
 #define TRACE_FUNC_ENTER		0xFDU
@@ -17,8 +18,10 @@
 struct trace_entry {
 	uint64_t tsc; /* TSC */
 	uint64_t id:48;
-	uint8_t n_data; /* nr of data in trace_entry */
-	uint8_t cpu; /* pcpu id of trace_entry */
+	uint8_t vm_id:4; /* nr of data in trace_entry */
+	uint8_t vcpu_id:4; /* nr of data in trace_entry */
+	uint8_t n_data:4; /* nr of data in trace_entry */
+	uint8_t cpu:4; /* pcpu id of trace_entry */
 
 	union {
 		struct {
@@ -38,11 +41,24 @@ struct trace_entry {
 	} payload;
 } __aligned(8);
 
+bool tracing_on = true;
+void trace_disable(void )
+{
+	tracing_on = false;
+}
+
+void trace_enable(void)
+{
+	tracing_on = true;
+}
+
 static inline bool trace_check(uint16_t cpu_id)
 {
 	if (per_cpu(sbuf, cpu_id)[ACRN_TRACE] == NULL) {
 		return false;
 	}
+	if (!tracing_on)
+		return false;
 
 	return true;
 }
@@ -50,11 +66,15 @@ static inline bool trace_check(uint16_t cpu_id)
 static inline void trace_put(uint16_t cpu_id, uint32_t evid, uint32_t n_data, struct trace_entry *entry)
 {
 	struct shared_buf *sbuf = per_cpu(sbuf, cpu_id)[ACRN_TRACE];
+	uint16_t vcpu_id = sched_get_current(cpu_id)->name[8]-'0';
+	uint16_t vm_id = sched_get_current(cpu_id)->name[2]-'0';
 
 	entry->tsc = rdtsc();
 	entry->id = evid;
 	entry->n_data = (uint8_t)n_data;
 	entry->cpu = (uint8_t)cpu_id;
+	entry->vcpu_id = vcpu_id;
+	entry->vm_id = vm_id;
 	(void)sbuf_put(sbuf, (uint8_t *)entry);
 }
 
