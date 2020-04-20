@@ -844,6 +844,9 @@ int32_t prepare_vcpu(struct acrn_vm *vm, uint16_t pcpu_id)
 		init_thread_data(&vcpu->thread_obj);
 		for (i = 0; i < VCPU_EVENT_NUM; i++) {
 			init_event(&vcpu->events[i]);
+			vcpu->events[i].type = i;
+			vcpu->events[i].vm_id = vm->vm_id;
+			vcpu->events[i].vcpu_id = vcpu->vcpu_id;
 		}
 	}
 
