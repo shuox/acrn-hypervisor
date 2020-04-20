@@ -6,6 +6,10 @@ struct sched_event {
 	spinlock_t lock;
 	bool set;
 	struct thread_object* waiting_thread;
+
+	uint16_t type;
+	uint16_t vm_id;
+	uint16_t vcpu_id;
 };
 
 void init_event(struct sched_event *event);
