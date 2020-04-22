@@ -637,12 +637,16 @@ static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv)
 	char temp_str[MAX_STR_SIZE];
 	struct acrn_vm *vm;
 	struct acrn_vcpu *vcpu;
-	char vcpu_state_str[32], thread_state_str[32];
-	uint16_t i;
+	char vcpu_state_str[32], thread_state_str[32], event_str[32] = {0};
+	uint16_t i, j, len;
 	uint16_t idx;
+	char *str_event[VCPU_EVENT_NUM] = {
+		"IO ",
+		"INTERRUPT ",
+	};
 
-	shell_puts("\r\nVM ID    PCPU ID    VCPU ID    VCPU ROLE    VCPU STATE    THREAD STATE"
-		"\r\n=====    =======    =======    =========    ==========    ==========\r\n");
+	shell_puts("\r\nVM ID    PCPU ID    VCPU ID    VCPU ROLE    VCPU STATE    THREAD STATE    WAITING"
+		"\r\n=====    =======    =======    =========    ==========    ==========    =========\r\n");
 
 	for (idx = 0U; idx < CONFIG_MAX_VM_NUM; idx++) {
 		vm = get_vm_from_vmid(idx);
@@ -650,6 +654,8 @@ static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv)
 			continue;
 		}
 		foreach_vcpu(i, vm, vcpu) {
+			event_str[0] = 0;
+			len = 0;
 			switch (vcpu->state) {
 			case VCPU_INIT:
 				(void)strncpy_s(vcpu_state_str, 32U, "Init", 32U);
@@ -682,17 +688,23 @@ static int32_t shell_list_vcpu(__unused int32_t argc, __unused char **argv)
 				(void)strncpy_s(thread_state_str, 32U, "UNKNOWN", 32U);
 				break;
 			}
+
+			for (j = 0; j < VCPU_EVENT_NUM; j++)
+				if (vcpu->events[j].waiting_thread != NULL) {
+					strncpy_s(event_str + len, 32U, str_event[j], 32U);
+					len += sizeof(str_event[j]) - 1;
+				}
 			/* Create output string consisting of VM name
 			 * and VM id
 			 */
 			snprintf(temp_str, MAX_STR_SIZE,
-					"  %-9d %-10d %-7hu %-12s %-16s %-16s\r\n",
+					"  %-9d %-10d %-7hu %-12s %-16s %-16s %-16s\r\n",
 					vm->vm_id,
 					pcpuid_from_vcpu(vcpu),
 					vcpu->vcpu_id,
 					is_vcpu_bsp(vcpu) ?
 					"PRIMARY" : "SECONDARY",
-					vcpu_state_str, thread_state_str);
+					vcpu_state_str, thread_state_str, event_str);
 			/* Output information for this task */
 			shell_puts(temp_str);
 		}
@@ -1319,10 +1331,12 @@ static int32_t shell_show_ioapic_info(__unused int32_t argc, __unused char **arg
 	return err;
 }
 
+void trace_enable(void );
 static int32_t shell_loglevel(int32_t argc, char **argv)
 {
 	char str[MAX_STR_SIZE] = {0};
 
+	trace_enable();
 	switch (argc) {
 	case 4:
 		npk_loglevel = (uint16_t)strtol_deci(argv[3]);
