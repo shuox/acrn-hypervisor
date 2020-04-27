@@ -101,8 +101,6 @@ static int acpi;
 static char *progname;
 static const int BSP;
 
-static cpuset_t cpumask;
-
 static void vm_loop(struct vmctx *ctx);
 
 static char vhm_request_page[4096] __aligned(4096);
@@ -255,9 +253,6 @@ add_cpu(struct vmctx *ctx, int vcpu_num)
 	int error;
 
 	for (i = 0; i < vcpu_num; i++) {
-		vm_create_vcpu(ctx, (uint16_t)i);
-		CPU_SET_ATOMIC(i, &cpumask);
-
 		mt_vmm_info[i].mt_ctx = ctx;
 		mt_vmm_info[i].mt_vcpu = i;
 	}
@@ -273,16 +268,10 @@ add_cpu(struct vmctx *ctx, int vcpu_num)
 static int
 delete_cpu(struct vmctx *ctx, int vcpu)
 {
-	if (!CPU_ISSET(vcpu, &cpumask)) {
-		pr_err("Attempting to delete unknown cpu %d\n", vcpu);
-		exit(1);
-	}
-
 	vm_destroy_ioreq_client(ctx);
 	pthread_join(mt_vmm_info[0].mt_thr, NULL);
 
-	CPU_CLR_ATOMIC(vcpu, &cpumask);
-	return CPU_EMPTY(&cpumask);
+	return 0;
 }
 
 #ifdef DM_DEBUG

@@ -371,19 +371,6 @@ struct acrn_create_vm {
 	uint8_t  reserved2[8];
 } __aligned(8);
 
-/**
- * @brief Info to create a VCPU (deprecated)
- *
- * the parameter for HC_CREATE_VCPU hypercall
- */
-struct acrn_create_vcpu {
-	/** the virtual CPU ID for the VCPU created */
-	uint16_t vcpu_id;
-
-	/** the physical CPU ID for the VCPU created */
-	uint16_t pcpu_id;
-} __aligned(8);
-
 /* General-purpose register layout aligned with the general-purpose register idx
  * when vmexit, such as vmexit due to CR access, refer to SMD Vol.3C 27-6.
  */
