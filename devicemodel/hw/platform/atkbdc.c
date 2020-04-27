@@ -362,7 +362,6 @@ atkbdc_sts_ctl_handler(struct vmctx *ctx, int vcpu, int in, int port,
 		break;
 	case KBDC_RESET:		/* Pulse "cold reset" line */
 		vm_suspend(ctx, VM_SUSPEND_FULL_RESET);
-		mevent_notify();
 		break;
 	default:
 		if (*eax >= 0x21 && *eax <= 0x3f) {
