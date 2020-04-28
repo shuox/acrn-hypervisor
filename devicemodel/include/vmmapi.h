@@ -100,11 +100,11 @@ int	vm_destroy_ioreq_client(struct vmctx *ctx);
 int	vm_attach_ioreq_client(struct vmctx *ctx);
 int	vm_notify_request_done(struct vmctx *ctx, int vcpu);
 void	vm_clear_ioreq(struct vmctx *ctx);
-void	vm_set_suspend_mode(enum vm_suspend_how how);
+void	vm_set_pm_mode(enum vm_pm_mode mode);
 #ifdef DM_DEBUG
 void	notify_vmloop_thread(void);
 #endif
-int	vm_get_suspend_mode(void);
+int	vm_get_pm_mode(void);
 void	vm_destroy(struct vmctx *ctx);
 int	vm_parse_memsize(const char *optarg, size_t *memsize);
 int	vm_map_memseg_vma(struct vmctx *ctx, size_t len, vm_paddr_t gpa,
@@ -120,7 +120,7 @@ uint32_t vm_get_lowmem_limit(struct vmctx *ctx);
 size_t	vm_get_lowmem_size(struct vmctx *ctx);
 size_t	vm_get_highmem_size(struct vmctx *ctx);
 int	vm_run(struct vmctx *ctx);
-int	vm_suspend(struct vmctx *ctx, enum vm_suspend_how how);
+int	vm_pm(struct vmctx *ctx, enum vm_pm_mode mode);
 int	vm_lapic_msi(struct vmctx *ctx, uint64_t addr, uint64_t msg);
 int	vm_set_gsi_irq(struct vmctx *ctx, int gsi, uint32_t operation);
 int	vm_assign_pcidev(struct vmctx *ctx, struct acrn_assign_pcidev *pcidev);

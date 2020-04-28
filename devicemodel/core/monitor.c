@@ -353,7 +353,7 @@ static void handle_stop(struct mngr_msg *msg, int client_fd, void *param)
 	ack.timestamp = msg->timestamp;
 
 	if (msg->data.acrnd_stop.force && !is_rtvm) {
-		vm_set_suspend_mode(VM_SUSPEND_POWEROFF);
+		vm_set_pm_mode(VM_PM_POWEROFF);
 		ack.data.err = 0;
 	} else {
 		LIST_FOREACH(ops, &vm_ops_head, list) {

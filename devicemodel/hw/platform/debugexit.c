@@ -44,7 +44,7 @@ debugexit_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 	if (in)
 		*eax = 0xFFFF;
 	else
-		vm_suspend(ctx, VM_SUSPEND_POWEROFF);
+		vm_pm(ctx, VM_PM_POWEROFF);
 
 	return 0;
 }

@@ -157,10 +157,10 @@ static void _scan_alive_vm(void)
 			vm->state_tmp = VM_STARTED;
 		else
 			switch (ret) {
-			case VM_SUSPEND_NONE:
+			case VM_PM_NONE:
 				vm->state_tmp = VM_STARTED;
 				break;
-			case VM_SUSPEND_SUSPEND:
+			case VM_PM_SUSPEND:
 				vm->state_tmp = VM_SUSPENDED;
 				break;
 			default:

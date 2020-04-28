@@ -68,11 +68,11 @@ reset_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 
 		if (*eax & 0x8) {
 			pr_notice("full reset\r\n");
-			vm_suspend(ctx, VM_SUSPEND_FULL_RESET);
+			vm_pm(ctx, VM_PM_FULL_RESET);
 			reset_control = 0;
 		} else if (*eax & 0x4) {
 			pr_notice("system reset\r\n");
-			vm_suspend(ctx, VM_SUSPEND_SYSTEM_RESET);
+			vm_pm(ctx, VM_PM_SYSTEM_RESET);
 		}
 	}
 	return 0;
@@ -263,11 +263,11 @@ pm1_control_handler(struct vmctx *ctx, int vcpu, int in, int port, int bytes,
 		 */
 		if (*eax & VIRTUAL_PM1A_SLP_EN) {
 			if ((pm1_control & VIRTUAL_PM1A_SLP_TYP) >> 10 == 5) {
-				vm_suspend(ctx, VM_SUSPEND_POWEROFF);
+				vm_pm(ctx, VM_PM_POWEROFF);
 			}
 
 			if ((pm1_control & VIRTUAL_PM1A_SLP_TYP) >> 10 == 3) {
-				vm_suspend(ctx, VM_SUSPEND_SUSPEND);
+				vm_pm(ctx, VM_PM_SUSPEND);
 			}
 		}
 	}

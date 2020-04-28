@@ -251,16 +251,16 @@ DM Initialization
                       handle_vmexit(ctx, vhm_req, vcpu_id);
               }
 
-              if (VM_SUSPEND_FULL_RESET == vm_get_suspend_mode() ||
-                VM_SUSPEND_POWEROFF == vm_get_suspend_mode()) {
+              if (VM_PM_FULL_RESET == vm_get_pm_mode() ||
+                VM_PM_POWEROFF == vm_get_pm_mode()) {
                 break;
               }
 
-              if (VM_SUSPEND_SYSTEM_RESET == vm_get_suspend_mode()) {
+              if (VM_PM_SYSTEM_RESET == vm_get_pm_mode()) {
                   vm_system_reset(ctx);
               }
 
-              if (VM_SUSPEND_SUSPEND == vm_get_suspend_mode()) {
+              if (VM_PM_SUSPEND == vm_get_pm_mode()) {
                   vm_suspend_resume(ctx);
               }
           }

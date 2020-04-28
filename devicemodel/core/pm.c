@@ -15,7 +15,7 @@ int
 wait_for_resume(struct vmctx *ctx)
 {
 	pthread_mutex_lock(&suspend_mutex);
-	while (vm_get_suspend_mode() == VM_SUSPEND_SUSPEND) {
+	while (vm_get_pm_mode() == VM_PM_SUSPEND) {
 		pthread_cond_wait(&suspend_cond, &suspend_mutex);
 	}
 	pthread_mutex_unlock(&suspend_mutex);
@@ -27,7 +27,7 @@ int
 vm_resume(struct vmctx *ctx)
 {
 	pthread_mutex_lock(&suspend_mutex);
-	vm_set_suspend_mode(VM_SUSPEND_NONE);
+	vm_set_pm_mode(VM_PM_NONE);
 	pthread_cond_signal(&suspend_cond);
 	pthread_mutex_unlock(&suspend_mutex);
 
@@ -46,5 +46,5 @@ vm_monitor_resume(void *arg)
 int
 vm_monitor_query(void *arg)
 {
-	return vm_get_suspend_mode();
+	return vm_get_pm_mode();
 }

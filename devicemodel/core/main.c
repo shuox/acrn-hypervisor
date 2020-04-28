@@ -392,8 +392,8 @@ handle_vmexit(struct vmctx *ctx, struct vhm_request *vhm_req, int vcpu)
 	 * vm_suspend_resume() for resetting the ioreq states in the VHM and
 	 * hypervisor.
 	 */
-	if ((VM_SUSPEND_SYSTEM_RESET == vm_get_suspend_mode()) ||
-		(VM_SUSPEND_SUSPEND == vm_get_suspend_mode()))
+	if ((VM_PM_SYSTEM_RESET == vm_get_pm_mode()) ||
+		(VM_PM_SUSPEND == vm_get_pm_mode()))
 		return;
 
 	vm_notify_request_done(ctx, vcpu);
@@ -576,7 +576,7 @@ vm_system_reset(struct vmctx *ctx)
 	 *   3. reset virtual devices
 	 *   4. load software for UOS
 	 *   5. hypercall reset vm
-	 *   6. reset suspend mode to VM_SUSPEND_NONE
+	 *   6. reset pm mode to VM_PM_NONE
 	 */
 
 	vm_pause(ctx);
@@ -600,7 +600,7 @@ vm_system_reset(struct vmctx *ctx)
 
 	vm_reset_vdevs(ctx);
 	vm_reset(ctx);
-	vm_set_suspend_mode(VM_SUSPEND_NONE);
+	vm_set_pm_mode(VM_PM_NONE);
 
 	/* set the BSP init state */
 	acrn_sw_load(ctx);
@@ -667,17 +667,17 @@ vm_loop(struct vmctx *ctx)
 				handle_vmexit(ctx, vhm_req, vcpu_id);
 		}
 
-		if (VM_SUSPEND_FULL_RESET == vm_get_suspend_mode() ||
-		    VM_SUSPEND_POWEROFF == vm_get_suspend_mode()) {
+		if (VM_PM_FULL_RESET == vm_get_pm_mode() ||
+		    VM_PM_POWEROFF == vm_get_pm_mode()) {
 			break;
 		}
 
 		/* RTVM can't be reset */
-		if ((VM_SUSPEND_SYSTEM_RESET == vm_get_suspend_mode()) && (!is_rtvm)) {
+		if ((VM_PM_SYSTEM_RESET == vm_get_pm_mode()) && (!is_rtvm)) {
 			vm_system_reset(ctx);
 		}
 
-		if (VM_SUSPEND_SUSPEND == vm_get_suspend_mode()) {
+		if (VM_PM_SUSPEND == vm_get_pm_mode()) {
 			vm_suspend_resume(ctx);
 		}
 	}
@@ -697,7 +697,7 @@ static void
 sig_handler_term(int signo)
 {
 	printf("Receive SIGINT to terminate application...\n");
-	vm_set_suspend_mode(VM_SUSPEND_POWEROFF);
+	vm_set_pm_mode(VM_PM_POWEROFF);
 	mevent_notify();
 }
 
@@ -1039,7 +1039,7 @@ main(int argc, char *argv[])
 		vm_pause(ctx);
 		delete_cpu(ctx, BSP);
 
-		if (vm_get_suspend_mode() != VM_SUSPEND_FULL_RESET){
+		if (vm_get_pm_mode() != VM_PM_FULL_RESET){
 			ret = 0;
 			break;
 		}
@@ -1050,7 +1050,7 @@ main(int argc, char *argv[])
 		vm_destroy(ctx);
 		_ctx = 0;
 
-		vm_set_suspend_mode(VM_SUSPEND_NONE);
+		vm_set_pm_mode(VM_PM_NONE);
 	}
 
 vm_fail:

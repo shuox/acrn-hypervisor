@@ -485,25 +485,25 @@ vm_clear_ioreq(struct vmctx *ctx)
 	ioctl(ctx->fd, IC_CLEAR_VM_IOREQ, NULL);
 }
 
-static int suspend_mode = VM_SUSPEND_NONE;
+static int pm_mode = VM_PM_NONE;
 
 void
-vm_set_suspend_mode(enum vm_suspend_how how)
+vm_set_pm_mode(enum vm_pm_mode mode)
 {
-	pr_notice("vm mode changed from %d to %d\n", suspend_mode, how);
-	suspend_mode = how;
+	pr_notice("vm mode changed from %d to %d\n", pm_mode, mode);
+	pm_mode = mode;
 }
 
 int
-vm_get_suspend_mode(void)
+vm_get_pm_mode(void)
 {
-	return suspend_mode;
+	return pm_mode;
 }
 
 int
-vm_suspend(struct vmctx *ctx, enum vm_suspend_how how)
+vm_pm(struct vmctx *ctx, enum vm_pm_mode how)
 {
-	vm_set_suspend_mode(how);
+	vm_set_pm_mode(how);
 	mevent_notify();
 
 	return 0;
