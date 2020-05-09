@@ -99,9 +99,6 @@ static int pm_notify_channel;
 static int acpi;
 
 static char *progname;
-static const int BSP;
-
-static void vm_loop(struct vmctx *ctx);
 
 static char vhm_request_page[4096] __aligned(4096);
 
@@ -119,12 +116,7 @@ struct dmstats {
 	uint64_t	vmexit_mmio_emul;
 } stats;
 
-struct mt_vmm_info {
-	pthread_t	mt_thr;
-	struct vmctx	*mt_ctx;
-	int		mt_vcpu;
-} mt_vmm_info[VM_MAXCPU];
-
+pthread_t ioreq_thread;
 static struct vmctx *_ctx;
 
 static void
@@ -226,62 +218,6 @@ high_bios_size(void)
 
 	return roundup2(size, 2 * MB);
 }
-
-static void *
-start_thread(void *param)
-{
-	char tname[MAXCOMLEN + 1];
-	struct mt_vmm_info *mtp;
-	int vcpu;
-
-	mtp = param;
-	vcpu = mtp->mt_vcpu;
-
-	snprintf(tname, sizeof(tname), "vcpu %d", vcpu);
-	pthread_setname_np(mtp->mt_thr, tname);
-
-	vm_loop(mtp->mt_ctx);
-
-	/* reset or halt */
-	return NULL;
-}
-
-static int
-add_cpu(struct vmctx *ctx, int vcpu_num)
-{
-	int i;
-	int error;
-
-	for (i = 0; i < vcpu_num; i++) {
-		mt_vmm_info[i].mt_ctx = ctx;
-		mt_vmm_info[i].mt_vcpu = i;
-	}
-
-	vm_set_vcpu_regs(ctx, &ctx->bsp_regs);
-
-	error = pthread_create(&mt_vmm_info[0].mt_thr, NULL,
-	    start_thread, &mt_vmm_info[0]);
-
-	return error;
-}
-
-static int
-delete_cpu(struct vmctx *ctx, int vcpu)
-{
-	vm_destroy_ioreq_client(ctx);
-	pthread_join(mt_vmm_info[0].mt_thr, NULL);
-
-	return 0;
-}
-
-#ifdef DM_DEBUG
-void
-notify_vmloop_thread(void)
-{
-	pthread_kill(mt_vmm_info[0].mt_thr, SIGCONT);
-	return;
-}
-#endif
 
 static void
 vmexit_inout(struct vmctx *ctx, struct vhm_request *vhm_req, int *pvcpu)
@@ -385,15 +321,14 @@ handle_vmexit(struct vmctx *ctx, struct vhm_request *vhm_req, int vcpu)
 
 	(*handler[exitcode])(ctx, vhm_req, &vcpu);
 
-	/* We cannot notify the VHM/hypervisor on the request completion at this
-	 * point if the UOS is in suspend or system reset mode, as the VM is
-	 * still not paused and a notification can kick off the vcpu to run
-	 * again. Postpone the notification till vm_system_reset() or
-	 * vm_suspend_resume() for resetting the ioreq states in the VHM and
-	 * hypervisor.
+	/*
+	 * Don't notify the hypervisor on the request completion at this point
+	 * if the User OS is in non-running PM mode, as the VM is still not
+	 * paused and a notification can kick off the vcpu to run again.
+	 * Postpone the notification till vm_system_reset() or
+	 * vm_suspend_resume() for resetting the ioreq states in hypervisor.
 	 */
-	if ((VM_PM_SYSTEM_RESET == vm_get_pm_mode()) ||
-		(VM_PM_SUSPEND == vm_get_pm_mode()))
+	if (VM_PM_NONE != vm_get_pm_mode())
 		return;
 
 	vm_notify_request_done(ctx, vcpu);
@@ -427,6 +362,51 @@ guest_pm_notify_deinit(struct vmctx *ctx)
 		pm_by_vuart_deinit(ctx);
 	else
 		pr_err("No correct pm notify channel given\n");
+}
+
+static void *
+ioreq_process(void *param)
+{
+	struct vmctx *ctx = (struct vmctx *)param;
+	char tname[MAXCOMLEN + 1];
+	int error;
+
+	snprintf(tname, sizeof(tname), "ioreq_thread");
+	pthread_setname_np(ioreq_thread, tname);
+
+	while (VM_PM_NONE == vm_get_pm_mode()) {
+		int vcpu_id;
+		struct vhm_request *vhm_req;
+
+		error = vm_attach_ioreq_client(ctx);
+		if (error)
+			break;
+
+		for (vcpu_id = 0; vcpu_id < guest_ncpus; vcpu_id++) {
+			vhm_req = &vhm_req_buf[vcpu_id];
+			if ((atomic_load(&vhm_req->processed) == REQ_STATE_PROCESSING)
+				&& (vhm_req->client == ctx->ioreq_client))
+				handle_vmexit(ctx, vhm_req, vcpu_id);
+		}
+	}
+	pr_err("VM ioreq thread exit\n");
+
+	/* reset or halt */
+	return NULL;
+}
+
+static int
+vm_create_ioreq_thread(struct vmctx *ctx)
+{
+	/* Currently, there is only one IO thread each VM. */
+	return pthread_create(&ioreq_thread, NULL, ioreq_process, ctx);
+}
+
+static void
+vm_destroy_ioreq_thread_sync(struct vmctx *ctx)
+{
+	pthread_kill(ioreq_thread, SIGCONT);
+	pthread_join(ioreq_thread, NULL);
 }
 
 static int
@@ -570,7 +550,7 @@ vm_system_reset(struct vmctx *ctx)
 {
 	/*
 	 * If we get system reset request, we don't want to exit the
-	 * vcpu_loop/vm_loop/mevent_loop. So we do:
+	 * mevent_loop. So we do:
 	 *   1. pause VM
 	 *   2. flush and clear ioreqs
 	 *   3. reset virtual devices
@@ -605,6 +585,7 @@ vm_system_reset(struct vmctx *ctx)
 	/* set the BSP init state */
 	acrn_sw_load(ctx);
 	vm_set_vcpu_regs(ctx, &ctx->bsp_regs);
+	vm_create_ioreq_thread(ctx);
 	vm_run(ctx);
 }
 
@@ -613,7 +594,7 @@ vm_suspend_resume(struct vmctx *ctx)
 {
 	/*
 	 * If we get warm reboot request, we don't want to exit the
-	 * vcpu_loop/vm_loop/mevent_loop. So we do:
+	 * mevent_loop. So we do:
 	 *   1. pause VM
 	 *   2. flush and clear ioreqs
 	 *   3. stop vm watchdog
@@ -633,55 +614,36 @@ vm_suspend_resume(struct vmctx *ctx)
 
 	/* set the BSP init state */
 	vm_set_vcpu_regs(ctx, &ctx->bsp_regs);
+	vm_create_ioreq_thread(ctx);
 	vm_run(ctx);
 }
 
-static void
-vm_loop(struct vmctx *ctx)
+/*
+ * return 1 indicates a VM_PM_FULL_RESET or VM_PM_POWEROFF happens
+ */
+int
+vm_pm_process(void)
 {
-	int error;
+	struct vmctx *ctx = _ctx;
+	int pm_mode;
 
-	ctx->ioreq_client = vm_create_ioreq_client(ctx);
-	if (ctx->ioreq_client < 0) {
-		pr_err("%s, failed to create IOREQ.\n", __func__);
-		return;
+	pm_mode = vm_get_pm_mode();
+	if (pm_mode == VM_PM_FULL_RESET ||
+			pm_mode == VM_PM_POWEROFF)
+		return 1;
+
+	/* RTVM can't be reset */
+	if ((VM_PM_SYSTEM_RESET == vm_get_pm_mode()) && (!is_rtvm)) {
+		vm_destroy_ioreq_thread_sync(ctx);
+		vm_system_reset(ctx);
 	}
 
-	if (vm_run(ctx) != 0) {
-		pr_err("%s, failed to run VM.\n", __func__);
-		return;
+	if (VM_PM_SUSPEND == vm_get_pm_mode()) {
+		vm_destroy_ioreq_thread_sync(ctx);
+		vm_suspend_resume(ctx);
 	}
 
-	while (1) {
-		int vcpu_id;
-		struct vhm_request *vhm_req;
-
-		error = vm_attach_ioreq_client(ctx);
-		if (error)
-			break;
-
-		for (vcpu_id = 0; vcpu_id < guest_ncpus; vcpu_id++) {
-			vhm_req = &vhm_req_buf[vcpu_id];
-			if ((atomic_load(&vhm_req->processed) == REQ_STATE_PROCESSING)
-				&& (vhm_req->client == ctx->ioreq_client))
-				handle_vmexit(ctx, vhm_req, vcpu_id);
-		}
-
-		if (VM_PM_FULL_RESET == vm_get_pm_mode() ||
-		    VM_PM_POWEROFF == vm_get_pm_mode()) {
-			break;
-		}
-
-		/* RTVM can't be reset */
-		if ((VM_PM_SYSTEM_RESET == vm_get_pm_mode()) && (!is_rtvm)) {
-			vm_system_reset(ctx);
-		}
-
-		if (VM_PM_SUSPEND == vm_get_pm_mode()) {
-			vm_suspend_resume(ctx);
-		}
-	}
-	pr_err("VM loop exit\n");
+	return 0;
 }
 
 static int
@@ -1018,26 +980,37 @@ main(int argc, char *argv[])
 		 */
 		/*setproctitle("%s", vmname);*/
 
-		/*
-		 * Add CPU 0
-		 */
-		pr_notice("add_cpu\n");
-		error = add_cpu(ctx, guest_ncpus);
-		if (error) {
-			pr_err("add_cpu failed, error=%d\n", error);
+		/* Set up BSP vCPU */
+		vm_set_vcpu_regs(ctx, &ctx->bsp_regs);
+
+		/* Create IO request client for this VM */
+		pr_notice("create IO request client\r\n");
+		ctx->ioreq_client = vm_create_ioreq_client(ctx);
+		if (ctx->ioreq_client < 0) {
+			pr_err("%s, failed to create IOREQ.\n", __func__);
 			goto vm_fail;
+		}
+
+		/* Create IO request processing thread for this VM */
+		pr_notice("create IO request thread\r\n");
+		error = vm_create_ioreq_thread(ctx);
+		if (error) {
+			pr_err("create IO request thread failed, error=%d\n", error);
+			goto ioreq_client_fail;
 		}
 
 		/* Make a copy for ctx */
 		_ctx = ctx;
 
+		/* launch the VM */
+		vm_run(ctx);
 		/*
 		 * Head off to the main event dispatch loop
 		 */
 		mevent_dispatch();
 
 		vm_pause(ctx);
-		delete_cpu(ctx, BSP);
+		vm_destroy_ioreq_client(ctx);
 
 		if (vm_get_pm_mode() != VM_PM_FULL_RESET){
 			ret = 0;
@@ -1053,6 +1026,8 @@ main(int argc, char *argv[])
 		vm_set_pm_mode(VM_PM_NONE);
 	}
 
+ioreq_client_fail:
+	vm_destroy_ioreq_client(ctx);
 vm_fail:
 	vm_deinit_vdevs(ctx);
 dev_fail:

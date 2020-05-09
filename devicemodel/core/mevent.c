@@ -425,8 +425,6 @@ mevent_dispatch(void)
 	}
 
 	for (;;) {
-		int pm_mode;
-
 		/*
 		 * Block awaiting events
 		 */
@@ -441,10 +439,7 @@ mevent_dispatch(void)
 		mevent_handle(eventlist, ret);
 		mevent_drain_del_list();
 
-		pm_mode = vm_get_pm_mode();
-		if ((pm_mode != VM_PM_NONE) &&
-		    (pm_mode != VM_PM_SYSTEM_RESET) &&
-		    (pm_mode != VM_PM_SUSPEND))
+		if (vm_pm_process() == 1)
 			break;
 	}
 }
