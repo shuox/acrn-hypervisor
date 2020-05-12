@@ -97,6 +97,15 @@ endif
 CFLAGS += -DSTACK_PROTECTOR
 endif
 
+# In case using Ubuntu 19.10 as build environment, its gcc has -fcf-protection enabled
+# by default. But this option is not compatible with -mindirect-branch:
+#   https://bugs.launchpad.net/ubuntu/+source/gcc-9/+bug/1830961
+#
+# We disable the -fcf-protection in ACRN build.
+ifeq (true, $(shell [ $(GCC_MAJOR) -gt 8 ] && echo true))
+CFLAGS += -fcf-protection=none
+endif
+
 ASFLAGS += -m64 -nostdinc -nostdlib
 
 LDFLAGS += -Wl,--gc-sections -nostartfiles -nostdlib
@@ -217,6 +226,9 @@ HW_C_SRCS += common/sched_noop.c
 endif
 ifeq ($(CONFIG_SCHED_IORR),y)
 HW_C_SRCS += common/sched_iorr.c
+endif
+ifeq ($(CONFIG_SCHED_BVT),y)
+HW_C_SRCS += common/sched_bvt.c
 endif
 HW_C_SRCS += hw/pci.c
 HW_C_SRCS += arch/x86/configs/vm_config.c

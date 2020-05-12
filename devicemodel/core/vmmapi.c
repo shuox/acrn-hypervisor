@@ -458,25 +458,15 @@ vm_set_gsi_irq(struct vmctx *ctx, int gsi, uint32_t operation)
 }
 
 int
-vm_assign_ptdev(struct vmctx *ctx, int bus, int slot, int func)
+vm_assign_pcidev(struct vmctx *ctx, struct acrn_assign_pcidev *pcidev)
 {
-	uint16_t bdf;
-
-	bdf = ((bus & 0xff) << 8) | ((slot & 0x1f) << 3) |
-			(func & 0x7);
-
-	return ioctl(ctx->fd, IC_ASSIGN_PTDEV, &bdf);
+	return ioctl(ctx->fd, IC_ASSIGN_PCIDEV, pcidev);
 }
 
 int
-vm_unassign_ptdev(struct vmctx *ctx, int bus, int slot, int func)
+vm_deassign_pcidev(struct vmctx *ctx, struct acrn_assign_pcidev *pcidev)
 {
-	uint16_t bdf;
-
-	bdf = ((bus & 0xff) << 8) | ((slot & 0x1f) << 3) |
-			(func & 0x7);
-
-	return ioctl(ctx->fd, IC_DEASSIGN_PTDEV, &bdf);
+	return ioctl(ctx->fd, IC_DEASSIGN_PCIDEV, pcidev);
 }
 
 int
@@ -509,30 +499,6 @@ vm_unmap_ptdev_mmio(struct vmctx *ctx, int bus, int slot, int func,
 	memmap.prot = PROT_ALL;
 
 	return ioctl(ctx->fd, IC_UNSET_MEMSEG, &memmap);
-}
-
-int
-vm_set_ptdev_msix_info(struct vmctx *ctx, struct ic_ptdev_irq *ptirq)
-{
-	if (!ptirq)
-		return -1;
-
-	return ioctl(ctx->fd, IC_SET_PTDEV_INTR_INFO, ptirq);
-}
-
-int
-vm_reset_ptdev_msix_info(struct vmctx *ctx, uint16_t virt_bdf, uint16_t phys_bdf,
-			 int vector_count)
-{
-	struct ic_ptdev_irq ptirq;
-
-	bzero(&ptirq, sizeof(ptirq));
-	ptirq.type = IRQ_MSIX;
-	ptirq.virt_bdf = virt_bdf;
-	ptirq.phys_bdf = phys_bdf;
-	ptirq.msix.vector_cnt = vector_count;
-
-	return ioctl(ctx->fd, IC_RESET_PTDEV_INTR_INFO, &ptirq);
 }
 
 int

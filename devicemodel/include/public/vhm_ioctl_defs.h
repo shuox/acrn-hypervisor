@@ -105,6 +105,8 @@
 #define IC_VM_PCI_MSIX_REMAP           _IC_ID(IC_ID, IC_ID_PCI_BASE + 0x02)
 #define IC_SET_PTDEV_INTR_INFO         _IC_ID(IC_ID, IC_ID_PCI_BASE + 0x03)
 #define IC_RESET_PTDEV_INTR_INFO       _IC_ID(IC_ID, IC_ID_PCI_BASE + 0x04)
+#define IC_ASSIGN_PCIDEV               _IC_ID(IC_ID, IC_ID_PCI_BASE + 0x05)
+#define IC_DEASSIGN_PCIDEV             _IC_ID(IC_ID, IC_ID_PCI_BASE + 0x06)
 
 /* Power management */
 #define IC_ID_PM_BASE                   0x60UL
@@ -148,6 +150,38 @@ struct vm_memmap {
 };
 
 /**
+ * @brief Info to assign or deassign PCI for a VM
+ *
+ */
+struct acrn_assign_pcidev {
+	/** reversed for externed compatibility */
+	uint32_t rsvd1;
+
+	/** virtual BDF# of the pass-through PCI device */
+	uint16_t virt_bdf;
+
+	/** physical BDF# of the pass-through PCI device */
+	uint16_t phys_bdf;
+
+	/** the PCI Interrupt Line, initialized by ACRN-DM, which is RO and
+	 *  ideally not used for pass-through MSI/MSI-x devices.
+	 */
+	uint8_t intr_line;
+
+	/** the PCI Interrupt Pin, initialized by ACRN-DM, which is RO and
+	 *  ideally not used for pass-through MSI/MSI-x devices.
+	 */
+	uint8_t intr_pin;
+
+	/** the base address of the PCI BAR, initialized by ACRN-DM. */
+	uint32_t bar[6];
+
+	/** reserved for extension */
+	uint32_t rsvd2[6];
+
+} __attribute__((aligned(8)));
+
+/**
  * @brief pass thru device irq data structure
  */
 struct ic_ptdev_irq {
@@ -160,30 +194,16 @@ struct ic_ptdev_irq {
 	uint16_t virt_bdf;	/* IN: Device virtual BDF# */
 	/** physical bdf description of pass thru device */
 	uint16_t phys_bdf;	/* IN: Device physical BDF# */
-	union {
-		/** info of IOAPIC/PIC interrupt */
-		struct {
-			/** virtual IOAPIC pin */
-			uint32_t virt_pin;
-			/** physical IOAPIC pin */
-			uint32_t phys_pin;
-			/** PIC pin */
-			uint32_t is_pic_pin;
-		} intx;
 
-		/** info of MSI/MSIX interrupt */
-		struct {
-                        /* Keep this filed on top of msix */
-			/** vector count of MSI/MSIX */
-			uint32_t vector_cnt;
-
-			/** size of MSIX table(round up to 4K) */
-			uint32_t table_size;
-
-			/** physical address of MSIX table */
-			uint64_t table_paddr;
-		} msix;
-	};
+	/** info of IOAPIC/PIC interrupt */
+	struct {
+		/** virtual IOAPIC pin */
+		uint32_t virt_pin;
+		/** physical IOAPIC pin */
+		uint32_t phys_pin;
+		/** PIC pin */
+		uint32_t is_pic_pin;
+	} intx;
 };
 
 /**

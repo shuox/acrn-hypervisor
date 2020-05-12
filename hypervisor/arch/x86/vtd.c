@@ -1046,7 +1046,7 @@ static void dmar_resume(struct dmar_drhd_rt *dmar_unit)
 	dmar_enable_intr_remapping(dmar_unit);
 }
 
-static int32_t add_iommu_device(struct iommu_domain *domain, uint8_t bus, uint8_t devfun)
+static int32_t iommu_attach_device(struct iommu_domain *domain, uint8_t bus, uint8_t devfun)
 {
 	struct dmar_drhd_rt *dmar_unit;
 	struct dmar_entry *root_table;
@@ -1161,7 +1161,7 @@ static int32_t add_iommu_device(struct iommu_domain *domain, uint8_t bus, uint8_
 	return ret;
 }
 
-static int32_t remove_iommu_device(const struct iommu_domain *domain, uint8_t bus, uint8_t devfun)
+static int32_t iommu_detach_device(const struct iommu_domain *domain, uint8_t bus, uint8_t devfun)
 {
 	struct dmar_drhd_rt *dmar_unit;
 	struct dmar_entry *root_table;
@@ -1263,7 +1263,17 @@ struct iommu_domain *create_iommu_domain(uint16_t vm_id, uint64_t translation_ta
 		domain->trans_table_ptr = translation_table;
 		domain->addr_width = addr_width;
 		domain->is_tt_ept = true;
+
+#ifdef CONFIG_IOMMU_ENFORCE_SNP
 		domain->iommu_snoop = true;
+#else
+		/* TODO: GPU IOMMU doesn't have snoop control capbility,
+		 * so set domain->iommu_snoop false to enable gvt-d by default.
+		 * If want to refine iommu snoop control policy,
+		 * need to change domain->iommu_snoop dynamically.
+		 */
+		domain->iommu_snoop = false;
+#endif
 
 		dev_dbg(DBG_LEVEL_IOMMU, "create domain [%d]: vm_id = %hu, ept@0x%x",
 			vmid_to_domainid(domain->vm_id), domain->vm_id, domain->trans_table_ptr);
@@ -1299,11 +1309,11 @@ int32_t move_pt_device(const struct iommu_domain *from_domain, struct iommu_doma
 
 	if (bus_local < CONFIG_IOMMU_BUS_NUM) {
 		if (from_domain != NULL) {
-			status = remove_iommu_device(from_domain, bus, devfun);
+			status = iommu_detach_device(from_domain, bus, devfun);
 		}
 
 		if ((status == 0) && (to_domain != NULL)) {
-			status = add_iommu_device(to_domain, bus, devfun);
+			status = iommu_attach_device(to_domain, bus, devfun);
 		}
 	} else {
 		status = -EINVAL;

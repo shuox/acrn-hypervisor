@@ -55,6 +55,15 @@ config SCHED_IORR
           IORR (IO sensitive Round Robin) scheduler supports multipule vCPUs running on
 	  on one pCPU, and they will be scheduled by a IO sensitive round robin policy.
 
+config SCHED_BVT
+        bool "BVT scheduler"
+        help
+	  BVT (Borrowed Virtual time) is virtual time based scheduling algorithm, it
+	  dispatching the runnable thread with the earliest effective virtual time.
+	  TODO: BVT scheduler will be built on top of prioritized scheduling mechanism,
+	  i.e. higher priority threads get scheduled first, and same priority tasks are
+	  scheduled per BVT.
+
 endchoice
 
 
@@ -244,6 +253,14 @@ config HYPERV_ENABLED
 	  When set, the minimum set of TLFS functionality together with some
 	  performance enlightenments are enabled.
 
+config CAT_ENABLED
+	bool "Enable CAT (Cache Allocation Technology)"
+	default n
+	help
+	  When set in platforms that support CAT, hypervisor can allocate
+	  various amount of last-level-cache (LLC) resources to VMs to achieve
+	  different Class of Service (COS, or CLOS).
+
 config GPU_SBDF
 	hex "Segment, Bus, Device, and function of the GPU"
 	depends on ACPI_PARSE_ENABLED
@@ -332,3 +349,10 @@ config MCE_ON_PSC_WORKAROUND_DISABLED
 	  conditionally applied to the models that may be affected by the issue. However,
 	  the software workaround has negative impact on performance. If all the guest OS
 	  kernels are trusted, this option may be set for performance.
+
+config IOMMU_ENFORCE_SNP
+	bool "IOMMU enforce snoop behavior of DMA operation"
+	default n
+	help
+	  GPU IOMMU doesn't support snoop control capability,
+	  To enable gvt-d,disable IOMMU snoop control by default.
