@@ -337,7 +337,7 @@ void	pci_walk_lintr(int bus, pci_lintr_cb cb, void *arg);
 void	pci_write_dsdt(void);
 int	pci_bus_configured(int bus);
 int	emulate_pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus,
-			  int slot, int func, int reg, int bytes, int *value);
+			  int slot, int func, int reg, int bytes, uint32_t *value);
 int	create_gsi_sharing_groups(void);
 void	update_pt_info(uint16_t phys_bdf);
 int	check_gsi_sharing_violation(void);

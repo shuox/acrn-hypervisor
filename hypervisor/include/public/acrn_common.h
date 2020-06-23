@@ -335,43 +335,6 @@ union vhm_request_buffer {
 } __aligned(4096);
 
 /**
- * @brief Info to create a VM, the parameter for HC_CREATE_VM hypercall
- */
-struct acrn_create_vm {
-	/** created vmid return to VHM. Keep it first field */
-	uint16_t vmid;
-
-	/** Reserved */
-	uint16_t reserved0;
-
-	/** VCPU numbers this VM want to create */
-	uint16_t vcpu_num;
-
-	/** Reserved */
-	uint16_t reserved1;
-
-	/** the UUID of this VM */
-	uint8_t	 uuid[16];
-
-	/* VM flag bits from Guest OS, now used
-	 *  GUEST_FLAG_SECURE_WORLD_ENABLED          (1UL<<0)
-	 */
-	uint64_t vm_flag;
-
-	uint64_t req_buf;
-
-	/**
-	 *   The least significant set bit is the PCPU # the VCPU 0 maps to;
-	 *   second set least significant bit is the PCPU # the VCPU 1 maps to;
-	 *   and so on...
-	*/
-	uint64_t cpu_affinity;
-
-	/** Reserved for future use*/
-	uint8_t  reserved2[8];
-} __aligned(8);
-
-/**
  * @brief Info to create a VCPU (deprecated)
  *
  * the parameter for HC_CREATE_VCPU hypercall
@@ -382,88 +345,6 @@ struct acrn_create_vcpu {
 
 	/** the physical CPU ID for the VCPU created */
 	uint16_t pcpu_id;
-} __aligned(8);
-
-/* General-purpose register layout aligned with the general-purpose register idx
- * when vmexit, such as vmexit due to CR access, refer to SMD Vol.3C 27-6.
- */
-struct acrn_gp_regs {
-	uint64_t rax;
-	uint64_t rcx;
-	uint64_t rdx;
-	uint64_t rbx;
-	uint64_t rsp;
-	uint64_t rbp;
-	uint64_t rsi;
-	uint64_t rdi;
-	uint64_t r8;
-	uint64_t r9;
-	uint64_t r10;
-	uint64_t r11;
-	uint64_t r12;
-	uint64_t r13;
-	uint64_t r14;
-	uint64_t r15;
-};
-
-/* struct to define how the descriptor stored in memory.
- * Refer SDM Vol3 3.5.1 "Segment Descriptor Tables"
- * Figure 3-11
- */
-struct acrn_descriptor_ptr {
-	uint16_t limit;
-	uint64_t base;
-	uint16_t reserved[3];   /* align struct size to 64bit */
-} __packed;
-
-/**
- * @brief registers info for vcpu.
- */
-struct acrn_vcpu_regs {
-	struct acrn_gp_regs gprs;
-	struct acrn_descriptor_ptr gdt;
-	struct acrn_descriptor_ptr idt;
-
-	uint64_t        rip;
-	uint64_t        cs_base;
-	uint64_t        cr0;
-	uint64_t        cr4;
-	uint64_t        cr3;
-	uint64_t        ia32_efer;
-	uint64_t        rflags;
-	uint64_t        reserved_64[4];
-
-	uint32_t        cs_ar;
-	uint32_t        cs_limit;
-	uint32_t        reserved_32[3];
-
-	/* don't change the order of following sel */
-	uint16_t        cs_sel;
-	uint16_t        ss_sel;
-	uint16_t        ds_sel;
-	uint16_t        es_sel;
-	uint16_t        fs_sel;
-	uint16_t        gs_sel;
-	uint16_t        ldt_sel;
-	uint16_t        tr_sel;
-
-	uint16_t        reserved_16[4];
-};
-
-/**
- * @brief Info to set vcpu state
- *
- * the pamameter for HC_SET_VCPU_STATE
- */
-struct acrn_set_vcpu_regs {
-	/** the virtual CPU ID for the VCPU to set state */
-	uint16_t vcpu_id;
-
-	/** reserved space to make cpu_state aligned to 8 bytes */
-	uint16_t reserved0[3];
-
-	/** the structure to hold vcpu state */
-	struct acrn_vcpu_regs vcpu_regs;
 } __aligned(8);
 
 /**
@@ -493,19 +374,6 @@ struct acrn_irqline_ops {
 } __aligned(8);
 
 /**
- * @brief Info to inject a MSI interrupt to VM
- *
- * the parameter for HC_INJECT_MSI hypercall
- */
-struct acrn_msi_entry {
-	/** MSI addr[19:12] with dest VCPU ID */
-	uint64_t msi_addr;
-
-	/** MSI data[7:0] with vector */
-	uint64_t msi_data;
-} __aligned(8);
-
-/**
  * @brief Info to inject a NMI interrupt for a VM
  */
 struct acrn_nmi_entry {
@@ -518,6 +386,14 @@ struct acrn_nmi_entry {
 	/** Reserved */
 	uint32_t reserved1;
 } __aligned(8);
+
+#define PMCMD_VMID_MASK                0xff000000U
+#define PMCMD_VCPUID_MASK      0x00ff0000U
+#define PMCMD_STATE_NUM_MASK   0x0000ff00U
+
+#define PMCMD_VMID_SHIFT       24U
+#define PMCMD_VCPUID_SHIFT     16U
+#define PMCMD_STATE_NUM_SHIFT  8U
 
 /**
  * @brief Info to remap pass-through PCI MSI for a VM
@@ -616,30 +492,6 @@ struct pm_s_state_data {
 	uint32_t *wake_vector_32;
 	uint64_t *wake_vector_64;
 } __aligned(8);
-
-/**
- * @brief Info PM command from DM/VHM.
- *
- * The command would specify request type(e.g. get px count or data) for
- * specific VM and specific VCPU with specific state number.
- * For Px, PMCMD_STATE_NUM means Px number from 0 to (MAX_PSTATE - 1),
- * For Cx, PMCMD_STATE_NUM means Cx entry index from 1 to MAX_CX_ENTRY.
- */
-#define PMCMD_VMID_MASK		0xff000000U
-#define PMCMD_VCPUID_MASK	0x00ff0000U
-#define PMCMD_STATE_NUM_MASK	0x0000ff00U
-#define PMCMD_TYPE_MASK		0x000000ffU
-
-#define PMCMD_VMID_SHIFT	24U
-#define PMCMD_VCPUID_SHIFT	16U
-#define PMCMD_STATE_NUM_SHIFT	8U
-
-enum pm_cmd_type {
-	PMCMD_GET_PX_CNT,
-	PMCMD_GET_PX_DATA,
-	PMCMD_GET_CX_CNT,
-	PMCMD_GET_CX_DATA,
-};
 
 /**
  * @brief Info to get a VM interrupt count data

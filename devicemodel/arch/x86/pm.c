@@ -34,6 +34,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#include "dm.h"
 #include "vmmapi.h"
 #include "acpi.h"
 #include "inout.h"

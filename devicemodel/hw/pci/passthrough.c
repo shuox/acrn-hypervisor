@@ -345,7 +345,7 @@ static int
 cfginit(struct vmctx *ctx, struct passthru_dev *ptdev, int bus,
 	int slot, int func)
 {
-	int irq_type = IRQ_MSI;
+	int irq_type = ACRN_PTDEV_IRQ_MSI;
 	char reset_path[60];
 	int fd;
 
@@ -364,7 +364,7 @@ cfginit(struct vmctx *ctx, struct passthru_dev *ptdev, int bus,
 	if (ptdev->msi.capoff == 0 && ptdev->msix.capoff == 0) {
 		warnx("MSI not supported for PCI %x/%x/%x",
 		    bus, slot, func);
-		irq_type = IRQ_INTX;
+		irq_type = ACRN_PTDEV_IRQ_INTX;
 	}
 
 	/* If SOS kernel provides 'reset' entry in sysfs, related dev has some
@@ -469,7 +469,7 @@ has_virt_pcicfg_regs_on_def_gpu(int offset)
  */
 void
 passthru_gpu_dsm_opregion(struct vmctx *ctx, struct passthru_dev *ptdev,
-			struct acrn_assign_pcidev *pcidev, uint16_t device)
+			struct acrn_pcidev *pcidev, uint16_t device)
 {
 	uint32_t opregion_phys, dsm_mask_val;
 
@@ -514,7 +514,7 @@ passthru_gpu_dsm_opregion(struct vmctx *ctx, struct passthru_dev *ptdev,
 
 	pci_set_cfgdata32(ptdev->dev, PCIR_ASLS_CTL, GPU_OPREGION_GPA | (opregion_phys & ~PCIM_ASLS_OPREGION_MASK));
 
-	pcidev->type = QUIRK_PTDEV;
+	pcidev->type = (1<<0); // QUIRK_PTDEV
 }
 
 static int
@@ -556,7 +556,7 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	bool need_reset = true;
 	bool d3hot_reset = false;
 	int vmsix_on_msi_bar_id = -1;
-	struct acrn_assign_pcidev pcidev = {};
+	struct acrn_pcidev pcidev = {};
 	uint16_t vendor = 0, device = 0;
 
 	ptdev = NULL;
@@ -671,7 +671,7 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 		error = pci_emul_alloc_pbar(dev, vmsix_on_msi_bar_id, 0, PCIBAR_MEM32, 4096);
 		if (error < 0)
 			goto done;
-		error = IRQ_MSI;
+		error = ACRN_PTDEV_IRQ_MSI;
 	}
 
 	if (ptdev->phys_bdf == PCI_BDF_GPU)
@@ -687,7 +687,7 @@ passthru_init(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 	 * Forge Guest to use MSI/MSIX in this case to mitigate IRQ sharing
 	 * issue
 	 */
-	if (error != IRQ_MSI || keep_gsi) {
+	if (error != ACRN_PTDEV_IRQ_MSI || keep_gsi) {
 		/* Allocates the virq if ptdev only support INTx */
 		pci_lintr_request(dev);
 
@@ -726,7 +726,7 @@ passthru_deinit(struct vmctx *ctx, struct pci_vdev *dev, char *opts)
 {
 	struct passthru_dev *ptdev;
 	uint16_t virt_bdf = PCI_BDF(dev->bus, dev->slot, dev->func);
-	struct acrn_assign_pcidev pcidev = {};
+	struct acrn_pcidev pcidev = {};
 	uint16_t phys_bdf = 0;
 	char reset_path[60];
 	int fd;

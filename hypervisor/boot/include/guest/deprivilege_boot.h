@@ -10,7 +10,7 @@
 #include <vboot.h>
 
 struct depri_boot_context {
-	struct acrn_vcpu_regs vcpu_regs;
+	struct acrn_regs vcpu_regs;
 	void *rsdp;
 	uint64_t ap_trampoline_buf;
 } __packed;

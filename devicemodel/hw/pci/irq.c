@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "dm.h"
 #include "types.h"
 #include "acpi.h"
 #include "vmmapi.h"

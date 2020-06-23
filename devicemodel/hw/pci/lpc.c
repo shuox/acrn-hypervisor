@@ -45,6 +45,7 @@
 #include "lpc.h"
 #include "pit.h"
 #include "uart_core.h"
+#include "acrn_common.h"
 
 #define	IO_ICU1		0x20
 #define	IO_ICU2		0xA0

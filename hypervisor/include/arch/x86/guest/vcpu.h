@@ -16,6 +16,7 @@
 
 #ifndef ASSEMBLER
 
+#include <vhm_ioctl_defs.h>
 #include <acrn_common.h>
 #include <guest_memory.h>
 #include <virtual_cr.h>
@@ -523,7 +524,7 @@ void vcpu_clear_eoi_exit_bitmap(struct acrn_vcpu *vcpu, uint32_t vector);
  *
  * @return None
  */
-void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_vcpu_regs *vcpu_regs);
+void set_vcpu_regs(struct acrn_vcpu *vcpu, struct acrn_regs *vcpu_regs);
 
 /**
  * @brief reset all the vcpu registers

@@ -30,7 +30,7 @@
 #define	_INOUT_H_
 
 #include "types.h"
-#include "acrn_common.h"
+#include "vmm.h"
 struct vmctx;
 struct vhm_request;
 
@@ -71,7 +71,7 @@ struct inout_port {
 	DATA_SET(inout_port_set, __CONCAT(__inout_port, __LINE__))
 
 void	init_inout(void);
-int	emulate_inout(struct vmctx *ctx, int *pvcpu, struct pio_request *req);
+int	emulate_inout(struct vmctx *ctx, int *pvcpu, struct acrn_pio_request *req);
 int	register_inout(struct inout_port *iop);
 int	unregister_inout(struct inout_port *iop);
 

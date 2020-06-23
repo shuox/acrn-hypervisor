@@ -7,6 +7,7 @@
 #ifndef ARCH_IRQ_H
 #define ARCH_IRQ_H
 
+#include <vhm_ioctl_defs.h>
 #include <acrn_common.h>
 #include <util.h>
 #include <spinlock.h>

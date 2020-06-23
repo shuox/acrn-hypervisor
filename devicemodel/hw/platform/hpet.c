@@ -44,6 +44,7 @@
 #include "timer.h"
 #include "hpet.h"
 #include "acpi_hpet.h"
+#include "acrn_common.h"
 
 #define	HPET_FREQ	(16777216)		/* 16.7 (2^24) Mhz */
 #define	FS_PER_S	(1000000000000000UL)

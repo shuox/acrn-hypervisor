@@ -38,6 +38,7 @@
 #ifndef CPU_H
 #define CPU_H
 #include <types.h>
+#include <vhm_ioctl_defs.h>
 #include <acrn_common.h>
 
 /* Define CPU stack alignment */

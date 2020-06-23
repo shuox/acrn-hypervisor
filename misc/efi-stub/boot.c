@@ -37,6 +37,7 @@
 #include "stdlib.h"
 #include "boot.h"
 #include "acrn_common.h"
+#include "vhm_ioctl_defs.h"
 #include "deprivilege_boot.h"
 #include "MpService.h"
 

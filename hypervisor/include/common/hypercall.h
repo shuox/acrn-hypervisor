@@ -73,7 +73,7 @@ int32_t hcall_get_platform_info(struct acrn_vm *vm, uint64_t param);
  *
  * @param vm Pointer to VM data structure
  * @param param guest physical memory address. This gpa points to
- *              struct acrn_create_vm
+ *              struct acrn_vm_creation
  *
  * @pre Pointer vm shall point to SOS_VM
  * @return 0 on success, non-zero on error.
@@ -142,7 +142,7 @@ int32_t hcall_pause_vm(uint16_t vmid);
  * @param vm Pointer to VM data structure
  * @param vmid ID of the VM
  * @param param guest physical address. This gpa points to
- *              struct acrn_vcpu_regs
+ *              struct acrn_regs
  *
  * @return 0 on success, non-zero on error.
  */

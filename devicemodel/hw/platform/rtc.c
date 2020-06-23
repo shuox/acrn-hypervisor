@@ -41,6 +41,7 @@
 #include "timer.h"
 #include "acpi.h"
 #include "lpc.h"
+#include "acrn_common.h"
 
 #include "log.h"
 

@@ -79,10 +79,10 @@ const char *vm_state_to_str(enum vm_suspend_how idx)
 static int
 check_api(int fd)
 {
-	struct api_version api_version;
+	struct acrn_api_version api_version;
 	int error;
 
-	error = ioctl(fd, IC_GET_API_VERSION, &api_version);
+	error = ioctl(fd, ACRN_IOCTL_GET_API_VERSION, &api_version);
 	if (error) {
 		pr_err("failed to get vhm api version\n");
 		return -1;
@@ -183,12 +183,12 @@ struct vmctx *
 vm_create(const char *name, uint64_t req_buf, int *vcpu_num)
 {
 	struct vmctx *ctx;
-	struct acrn_create_vm create_vm;
+	struct acrn_vm_creation create_vm;
 	int error, retry = 10;
 	uuid_t vm_uuid;
 	struct stat tmp_st;
 
-	memset(&create_vm, 0, sizeof(struct acrn_create_vm));
+	memset(&create_vm, 0, sizeof(struct acrn_vm_creation));
 	ctx = calloc(1, sizeof(struct vmctx) + strnlen(name, PATH_MAX) + 1);
 	if ((ctx == NULL) || (devfd != -1))
 		goto err;
@@ -251,9 +251,9 @@ vm_create(const char *name, uint64_t req_buf, int *vcpu_num)
 		create_vm.vm_flag |= GUEST_FLAG_IO_COMPLETION_POLLING;
 	}
 
-	create_vm.req_buf = req_buf;
+	create_vm.ioreq_buf = req_buf;
 	while (retry > 0) {
-		error = ioctl(ctx->fd, IC_CREATE_VM, &create_vm);
+		error = ioctl(ctx->fd, ACRN_IOCTL_CREATE_VM, &create_vm);
 		if (error == 0)
 			break;
 		usleep(500000);
@@ -280,13 +280,13 @@ err:
 int
 vm_create_ioreq_client(struct vmctx *ctx)
 {
-	return ioctl(ctx->fd, IC_CREATE_IOREQ_CLIENT, 0);
+	return ioctl(ctx->fd, ACRN_IOCTL_CREATE_IOREQ_CLIENT, 0);
 }
 
 int
 vm_destroy_ioreq_client(struct vmctx *ctx)
 {
-	return ioctl(ctx->fd, IC_DESTROY_IOREQ_CLIENT, ctx->ioreq_client);
+	return ioctl(ctx->fd, ACRN_IOCTL_DESTROY_IOREQ_CLIENT, ctx->ioreq_client);
 }
 
 int
@@ -294,7 +294,7 @@ vm_attach_ioreq_client(struct vmctx *ctx)
 {
 	int error;
 
-	error = ioctl(ctx->fd, IC_ATTACH_IOREQ_CLIENT, ctx->ioreq_client);
+	error = ioctl(ctx->fd, ACRN_IOCTL_ATTACH_IOREQ_CLIENT, ctx->ioreq_client);
 
 	if (error) {
 		pr_err("attach ioreq client return %d "
@@ -310,13 +310,13 @@ int
 vm_notify_request_done(struct vmctx *ctx, int vcpu)
 {
 	int error;
-	struct ioreq_notify notify;
+	struct acrn_ioreq_notify notify;
 
 	bzero(&notify, sizeof(notify));
-	notify.client_id = ctx->ioreq_client;
+	notify.vmid = ctx->vmid;
 	notify.vcpu = vcpu;
 
-	error = ioctl(ctx->fd, IC_NOTIFY_REQUEST_FINISH, &notify);
+	error = ioctl(ctx->fd, ACRN_IOCTL_NOTIFY_REQUEST_FINISH, &notify);
 
 	if (error) {
 		pr_err("failed: notify request finish\n");
@@ -332,7 +332,7 @@ vm_destroy(struct vmctx *ctx)
 	if (!ctx)
 		return;
 
-	ioctl(ctx->fd, IC_DESTROY_VM, NULL);
+	ioctl(ctx->fd, ACRN_IOCTL_DESTROY_VM, NULL);
 	close(ctx->fd);
 	free(ctx);
 	devfd = -1;
@@ -383,16 +383,15 @@ int
 vm_map_memseg_vma(struct vmctx *ctx, size_t len, vm_paddr_t gpa,
 	uint64_t vma, int prot)
 {
-	struct vm_memmap memmap;
+	struct acrn_vm_memmap memmap;
 
-	bzero(&memmap, sizeof(struct vm_memmap));
-	memmap.type = VM_MEMMAP_SYSMEM;
-	memmap.using_vma = 1;
+	bzero(&memmap, sizeof(struct acrn_vm_memmap));
+	memmap.type = ACRN_MEMMAP_RAM;
 	memmap.vma_base = vma;
 	memmap.len = len;
-	memmap.gpa = gpa;
-	memmap.prot = prot;
-	return ioctl(ctx->fd, IC_SET_MEMSEG, &memmap);
+	memmap.user_vm_pa = gpa;
+	memmap.attr = prot;
+	return ioctl(ctx->fd, ACRN_IOCTL_SET_MEMSEG, &memmap);
 }
 
 int
@@ -488,7 +487,7 @@ vm_run(struct vmctx *ctx)
 {
 	int error;
 
-	error = ioctl(ctx->fd, IC_START_VM, &ctx->vmid);
+	error = ioctl(ctx->fd, ACRN_IOCTL_START_VM, &ctx->vmid);
 
 	return error;
 }
@@ -496,19 +495,19 @@ vm_run(struct vmctx *ctx)
 void
 vm_pause(struct vmctx *ctx)
 {
-	ioctl(ctx->fd, IC_PAUSE_VM, &ctx->vmid);
+	ioctl(ctx->fd, ACRN_IOCTL_PAUSE_VM, &ctx->vmid);
 }
 
 void
 vm_reset(struct vmctx *ctx)
 {
-	ioctl(ctx->fd, IC_RESET_VM, &ctx->vmid);
+	ioctl(ctx->fd, ACRN_IOCTL_RESET_VM, &ctx->vmid);
 }
 
 void
 vm_clear_ioreq(struct vmctx *ctx)
 {
-	ioctl(ctx->fd, IC_CLEAR_VM_IOREQ, NULL);
+	ioctl(ctx->fd, ACRN_IOCTL_CLEAR_VM_IOREQ, NULL);
 }
 
 static enum vm_suspend_how suspend_mode = VM_SUSPEND_NONE;
@@ -545,7 +544,7 @@ vm_lapic_msi(struct vmctx *ctx, uint64_t addr, uint64_t msg)
 	msi.msi_addr = addr;
 	msi.msi_data = msg;
 
-	return ioctl(ctx->fd, IC_INJECT_MSI, &msi);
+	return ioctl(ctx->fd, ACRN_IOCTL_INJECT_MSI, &msi);
 }
 
 int
@@ -557,137 +556,132 @@ vm_set_gsi_irq(struct vmctx *ctx, int gsi, uint32_t operation)
 	op.op = operation;
 	op.gsi = (uint32_t)gsi;
 
-	return ioctl(ctx->fd, IC_SET_IRQLINE, *req);
+	return ioctl(ctx->fd, ACRN_IOCTL_SET_IRQLINE, *req);
 }
 
 int
-vm_assign_pcidev(struct vmctx *ctx, struct acrn_assign_pcidev *pcidev)
+vm_assign_pcidev(struct vmctx *ctx, struct acrn_pcidev *pcidev)
 {
-	return ioctl(ctx->fd, IC_ASSIGN_PCIDEV, pcidev);
+	return ioctl(ctx->fd, ACRN_IOCTL_ASSIGN_PCIDEV, pcidev);
 }
 
 int
-vm_deassign_pcidev(struct vmctx *ctx, struct acrn_assign_pcidev *pcidev)
+vm_deassign_pcidev(struct vmctx *ctx, struct acrn_pcidev *pcidev)
 {
-	return ioctl(ctx->fd, IC_DEASSIGN_PCIDEV, pcidev);
+	return ioctl(ctx->fd, ACRN_IOCTL_DEASSIGN_PCIDEV, pcidev);
 }
 
 int
 vm_assign_mmiodev(struct vmctx *ctx, struct acrn_mmiodev *mmiodev)
 {
-	return ioctl(ctx->fd, IC_ASSIGN_MMIODEV, mmiodev);
+	/* not upstream yet */
+	return 0;
 }
 
 int
 vm_deassign_mmiodev(struct vmctx *ctx, struct acrn_mmiodev *mmiodev)
 {
-	return ioctl(ctx->fd, IC_DEASSIGN_MMIODEV, mmiodev);
+	/* not upstream yet */
+	return 0;
 }
 
 int
 vm_map_ptdev_mmio(struct vmctx *ctx, int bus, int slot, int func,
 		   vm_paddr_t gpa, size_t len, vm_paddr_t hpa)
 {
-	struct vm_memmap memmap;
+	struct acrn_vm_memmap memmap;
 
-	bzero(&memmap, sizeof(struct vm_memmap));
-	memmap.type = VM_MMIO;
+	bzero(&memmap, sizeof(struct acrn_vm_memmap));
+	memmap.type = ACRN_MEMMAP_MMIO;
 	memmap.len = len;
-	memmap.gpa = gpa;
-	memmap.hpa = hpa;
-	memmap.prot = PROT_ALL;
+	memmap.user_vm_pa = gpa;
+	memmap.service_vm_pa = hpa;
+	memmap.attr = ACRN_MEM_ACCESS_RWX;
 
-	return ioctl(ctx->fd, IC_SET_MEMSEG, &memmap);
+	return ioctl(ctx->fd, ACRN_IOCTL_SET_MEMSEG, &memmap);
 }
 
 int
 vm_unmap_ptdev_mmio(struct vmctx *ctx, int bus, int slot, int func,
 		   vm_paddr_t gpa, size_t len, vm_paddr_t hpa)
 {
-	struct vm_memmap memmap;
+	struct acrn_vm_memmap memmap;
 
-	bzero(&memmap, sizeof(struct vm_memmap));
-	memmap.type = VM_MMIO;
+	bzero(&memmap, sizeof(struct acrn_vm_memmap));
+	memmap.type = ACRN_MEMMAP_MMIO;
 	memmap.len = len;
-	memmap.gpa = gpa;
-	memmap.hpa = hpa;
-	memmap.prot = PROT_ALL;
+	memmap.user_vm_pa  = gpa;
+	memmap.service_vm_pa = hpa;
+	memmap.attr = ACRN_MEM_ACCESS_RWX;
 
-	return ioctl(ctx->fd, IC_UNSET_MEMSEG, &memmap);
+	return ioctl(ctx->fd, ACRN_IOCTL_UNSET_MEMSEG, &memmap);
 }
 
 int
 vm_set_ptdev_intx_info(struct vmctx *ctx, uint16_t virt_bdf, uint16_t phys_bdf,
 		       int virt_pin, int phys_pin, bool pic_pin)
 {
-	struct ic_ptdev_irq ptirq;
+	struct acrn_ptdev_irq ptirq;
 
 	bzero(&ptirq, sizeof(ptirq));
-	ptirq.type = IRQ_INTX;
+	ptirq.type = ACRN_PTDEV_IRQ_INTX;
 	ptirq.virt_bdf = virt_bdf;
 	ptirq.phys_bdf = phys_bdf;
 	ptirq.intx.virt_pin = virt_pin;
 	ptirq.intx.phys_pin = phys_pin;
 	ptirq.intx.is_pic_pin = pic_pin;
 
-	return ioctl(ctx->fd, IC_SET_PTDEV_INTR_INFO, &ptirq);
+	return ioctl(ctx->fd, ACRN_IOCTL_SET_PTDEV_INTR, &ptirq);
 }
 
 int
 vm_reset_ptdev_intx_info(struct vmctx *ctx, uint16_t virt_bdf, uint16_t phys_bdf,
 			int virt_pin, bool pic_pin)
 {
-	struct ic_ptdev_irq ptirq;
+	struct acrn_ptdev_irq ptirq;
 
 	bzero(&ptirq, sizeof(ptirq));
-	ptirq.type = IRQ_INTX;
+	ptirq.type = ACRN_PTDEV_IRQ_INTX;
 	ptirq.intx.virt_pin = virt_pin;
 	ptirq.intx.is_pic_pin = pic_pin;
 	ptirq.virt_bdf = virt_bdf;
 	ptirq.phys_bdf = phys_bdf;
 
-	return ioctl(ctx->fd, IC_RESET_PTDEV_INTR_INFO, &ptirq);
+	return ioctl(ctx->fd, ACRN_IOCTL_RESET_PTDEV_INTR, &ptirq);
 }
 
 int
 vm_create_vcpu(struct vmctx *ctx, uint16_t vcpu_id)
 {
-	struct acrn_create_vcpu cv;
-	int error;
-
-	bzero(&cv, sizeof(struct acrn_create_vcpu));
-	cv.vcpu_id = vcpu_id;
-	error = ioctl(ctx->fd, IC_CREATE_VCPU, &cv);
-
-	return error;
+	return 0;
 }
 
 int
-vm_set_vcpu_regs(struct vmctx *ctx, struct acrn_set_vcpu_regs *vcpu_regs)
+vm_set_vcpu_regs(struct vmctx *ctx, struct acrn_vcpu_regs *vcpu_regs)
 {
-	return ioctl(ctx->fd, IC_SET_VCPU_REGS, vcpu_regs);
+	return ioctl(ctx->fd, ACRN_IOCTL_SET_VCPU_REGS, vcpu_regs);
 }
 
 int
 vm_get_cpu_state(struct vmctx *ctx, void *state_buf)
 {
-	return ioctl(ctx->fd, IC_PM_GET_CPU_STATE, state_buf);
+	return ioctl(ctx->fd, ACRN_IOCTL_PM_GET_CPU_STATE, state_buf);
 }
 
 int
 vm_intr_monitor(struct vmctx *ctx, void *intr_buf)
 {
-	return ioctl(ctx->fd, IC_VM_INTR_MONITOR, intr_buf);
+	return ioctl(ctx->fd, ACRN_IOCTL_VM_INTR_MONITOR, intr_buf);
 }
 
 int
 vm_ioeventfd(struct vmctx *ctx, struct acrn_ioeventfd *args)
 {
-	return ioctl(ctx->fd, IC_EVENT_IOEVENTFD, args);
+	return ioctl(ctx->fd, ACRN_IOCTL_IOEVENTFD, args);
 }
 
 int
 vm_irqfd(struct vmctx *ctx, struct acrn_irqfd *args)
 {
-	return ioctl(ctx->fd, IC_EVENT_IRQFD, args);
+	return ioctl(ctx->fd, ACRN_IOCTL_IRQFD, args);
 }

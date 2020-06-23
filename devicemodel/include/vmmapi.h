@@ -66,7 +66,7 @@ struct vmctx {
 	void *tpm_dev;
 
 	/* BSP state. guest loader needs to fill it */
-	struct acrn_set_vcpu_regs bsp_regs;
+	struct acrn_vcpu_regs bsp_regs;
 
 	/* if gvt-g is enabled for current VM */
 	bool gvt_enabled;
@@ -124,8 +124,8 @@ int	vm_run(struct vmctx *ctx);
 int	vm_suspend(struct vmctx *ctx, enum vm_suspend_how how);
 int	vm_lapic_msi(struct vmctx *ctx, uint64_t addr, uint64_t msg);
 int	vm_set_gsi_irq(struct vmctx *ctx, int gsi, uint32_t operation);
-int	vm_assign_pcidev(struct vmctx *ctx, struct acrn_assign_pcidev *pcidev);
-int	vm_deassign_pcidev(struct vmctx *ctx, struct acrn_assign_pcidev *pcidev);
+int	vm_assign_pcidev(struct vmctx *ctx, struct acrn_pcidev *pcidev);
+int	vm_deassign_pcidev(struct vmctx *ctx, struct acrn_pcidev *pcidev);
 int	vm_assign_mmiodev(struct vmctx *ctx, struct acrn_mmiodev *mmiodev);
 int	vm_deassign_mmiodev(struct vmctx *ctx, struct acrn_mmiodev *mmiodev);
 int	vm_map_ptdev_mmio(struct vmctx *ctx, int bus, int slot, int func,
@@ -139,7 +139,7 @@ int	vm_reset_ptdev_intx_info(struct vmctx *ctx, uint16_t virt_bdf,
 
 int	acrn_parse_cpu_affinity(char *arg);
 int	vm_create_vcpu(struct vmctx *ctx, uint16_t vcpu_id);
-int	vm_set_vcpu_regs(struct vmctx *ctx, struct acrn_set_vcpu_regs *cpu_regs);
+int	vm_set_vcpu_regs(struct vmctx *ctx, struct acrn_vcpu_regs *cpu_regs);
 
 int	vm_get_cpu_state(struct vmctx *ctx, void *state_buf);
 int	vm_intr_monitor(struct vmctx *ctx, void *intr_buf);

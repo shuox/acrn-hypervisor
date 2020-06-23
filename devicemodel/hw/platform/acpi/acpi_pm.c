@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "dm.h"
 #include "vmmapi.h"
 #include "acpi.h"
 
@@ -26,7 +27,7 @@ static inline uint8_t get_vcpu_px_cnt(struct vmctx *ctx, int vcpu_id)
 {
 	uint64_t px_cnt;
 
-	if (get_vcpu_pm_info(ctx, vcpu_id, PMCMD_GET_PX_CNT, &px_cnt)) {
+	if (get_vcpu_pm_info(ctx, vcpu_id, ACRN_PMCMD_GET_PX_CNT, &px_cnt)) {
 		return 0;
 	}
 
@@ -37,7 +38,7 @@ uint8_t get_vcpu_cx_cnt(struct vmctx *ctx, int vcpu_id)
 {
 	uint64_t cx_cnt;
 
-	if (get_vcpu_pm_info(ctx, vcpu_id, PMCMD_GET_CX_CNT, &cx_cnt)) {
+	if (get_vcpu_pm_info(ctx, vcpu_id, ACRN_PMCMD_GET_CX_CNT, &cx_cnt)) {
 		return 0;
 	}
 
@@ -48,7 +49,7 @@ static int get_vcpu_px_data(struct vmctx *ctx, int vcpu_id,
 			int px_num, struct cpu_px_data *vcpu_px_data)
 {
 	uint64_t *pm_ioctl_buf;
-	enum pm_cmd_type cmd_type = PMCMD_GET_PX_DATA;
+	enum acrn_pm_cmd_type cmd_type = ACRN_PMCMD_GET_PX_DATA;
 
 	pm_ioctl_buf = malloc(sizeof(struct cpu_px_data));
 	if (!pm_ioctl_buf) {
@@ -77,7 +78,7 @@ int get_vcpu_cx_data(struct vmctx *ctx, int vcpu_id,
 			int cx_num, struct cpu_cx_data *vcpu_cx_data)
 {
 	uint64_t *pm_ioctl_buf;
-	enum pm_cmd_type cmd_type = PMCMD_GET_CX_DATA;
+	enum acrn_pm_cmd_type cmd_type = ACRN_PMCMD_GET_CX_DATA;
 
 	pm_ioctl_buf = malloc(sizeof(struct cpu_cx_data));
 	if (!pm_ioctl_buf) {

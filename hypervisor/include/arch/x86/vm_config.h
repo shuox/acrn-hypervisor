@@ -16,6 +16,7 @@
 #include <vm_configurations.h>
 #include <sgx.h>
 #include <acrn_hv_defs.h>
+#include <vhm_ioctl_defs.h>
 
 #define CONFIG_MAX_VM_NUM	(PRE_VM_NUM + SOS_VM_NUM + MAX_POST_VM_NUM)
 

@@ -45,7 +45,7 @@
 #define BOOT_CTX_EFER_LOW_OFFSET    200U
 #define BOOT_CTX_EFER_HIGH_OFFSET   204U
 #define SIZE_OF_BOOT_CTX            296U
-struct acrn_vcpu_regs;
-extern struct acrn_vcpu_regs boot_context;
+struct acrn_regs;
+extern struct acrn_regs boot_context;
 #endif /* ASSEMBLER */
 #endif /* BOOT_CTX_H */

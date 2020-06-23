@@ -33,6 +33,7 @@
 #include "types.h"
 #include "vmm.h"
 #include "dm_string.h"
+#include "acrn_common.h"
 
 #define MAX_VMNAME_LEN	128U
 
@@ -51,7 +52,7 @@ extern bool is_rtvm;
 extern bool pt_tpm2;
 extern bool is_winvm;
 
-int vmexit_task_switch(struct vmctx *ctx, struct vhm_request *vhm_req,
+int vmexit_task_switch(struct vmctx *ctx, struct acrn_io_request *vhm_req,
 		       int *vcpu);
 
 /**

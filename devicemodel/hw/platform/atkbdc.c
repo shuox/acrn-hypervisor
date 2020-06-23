@@ -43,6 +43,7 @@
 #include "vmmapi.h"
 #include "mevent.h"
 #include "log.h"
+#include "acrn_common.h"
 
 static void
 atkbdc_assert_kbd_intr(struct atkbdc_base *base)

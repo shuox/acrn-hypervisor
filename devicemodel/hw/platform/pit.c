@@ -40,6 +40,7 @@
 #include "inout.h"
 #include "pit.h"
 #include "log.h"
+#include "acrn_common.h"
 
 #define	TMR2_OUT_STS		0x20
 

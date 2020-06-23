@@ -241,7 +241,7 @@ vhost_vq_register_eventfd(struct vhost_dev *vdev,
 	}
 
 	ioeventfd.fd = vq->kick_fd;
-	DPRINTF("[ioeventfd: %d][0x%lx@%d][flags: 0x%x][data: 0x%lx]\n",
+	DPRINTF("[ioeventfd: %d][0x%llx@%d][flags: 0x%x][data: 0x%llx]\n",
 		ioeventfd.fd, ioeventfd.addr, ioeventfd.len,
 		ioeventfd.flags, ioeventfd.data);
 	rc = vm_ioeventfd(vdev->base->dev->vmctx, &ioeventfd);

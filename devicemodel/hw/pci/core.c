@@ -2415,7 +2415,7 @@ pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
 
 int
 emulate_pci_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot,
-		  int func, int reg, int bytes, int *value)
+		  int func, int reg, int bytes, uint32_t *value)
 {
 	pci_cfgrw(ctx, vcpu, in, bus, slot, func, reg,
 			bytes, (uint32_t *)value);

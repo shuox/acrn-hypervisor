@@ -20,6 +20,7 @@
 #include <logmsg.h>
 #include <ioapic.h>
 #include <mmio_dev.h>
+#include <vhm_ioctl_defs.h>
 
 #define DBG_LEVEL_HYCALL	6U
 
@@ -147,7 +148,7 @@ int32_t hcall_get_platform_info(struct acrn_vm *vm, uint64_t param)
  *
  * @param vm Pointer to VM data structure
  * @param param guest physical memory address. This gpa points to
- *              struct acrn_create_vm
+ *              struct acrn_vm_creation
  *
  * @pre Pointer vm shall point to SOS_VM, vm_config != NULL
  * @return 0 on success, non-zero on error.
@@ -157,7 +158,7 @@ int32_t hcall_create_vm(struct acrn_vm *vm, uint64_t param)
 	uint16_t vm_id;
 	int32_t ret = -1;
 	struct acrn_vm *target_vm = NULL;
-	struct acrn_create_vm cv;
+	struct acrn_vm_creation cv;
 	struct acrn_vm_config* vm_config = NULL;
 
 	if (copy_from_gpa(vm, &cv, param, sizeof(cv)) == 0) {
@@ -325,7 +326,7 @@ int32_t hcall_reset_vm(uint16_t vmid)
  * @param vm Pointer to VM data structure
  * @param vmid ID of the VM
  * @param param guest physical address. This gpa points to
- *              struct acrn_vcpu_regs
+ *              struct acrn_regs
  *
  * @pre Pointer vm shall point to SOS_VM
  * @return 0 on success, non-zero on error.
@@ -333,7 +334,7 @@ int32_t hcall_reset_vm(uint16_t vmid)
 int32_t hcall_set_vcpu_regs(struct acrn_vm *vm, uint16_t vmid, uint64_t param)
 {
 	struct acrn_vm *target_vm = get_vm_from_vmid(vmid);
-	struct acrn_set_vcpu_regs vcpu_regs;
+	struct acrn_vcpu_regs vcpu_regs;
 	struct acrn_vcpu *vcpu;
 	int32_t ret = -1;
 
@@ -1083,13 +1084,13 @@ int32_t hcall_get_cpu_pm_state(struct acrn_vm *vm, uint64_t cmd, uint64_t param)
 	}
 	if ((target_vm != NULL) && (!is_poweroff_vm(target_vm)) && (is_postlaunched_vm(target_vm))) {
 		switch (cmd & PMCMD_TYPE_MASK) {
-		case PMCMD_GET_PX_CNT: {
+		case ACRN_PMCMD_GET_PX_CNT: {
 			if (target_vm->pm.px_cnt != 0U) {
 				ret = copy_to_gpa(vm, &(target_vm->pm.px_cnt), param, sizeof(target_vm->pm.px_cnt));
 			}
 			break;
 		}
-		case PMCMD_GET_PX_DATA: {
+		case ACRN_PMCMD_GET_PX_DATA: {
 			uint8_t pn;
 			struct cpu_px_data *px_data;
 
@@ -1110,13 +1111,13 @@ int32_t hcall_get_cpu_pm_state(struct acrn_vm *vm, uint64_t cmd, uint64_t param)
 			ret = copy_to_gpa(vm, px_data, param, sizeof(struct cpu_px_data));
 			break;
 		}
-		case PMCMD_GET_CX_CNT: {
+		case ACRN_PMCMD_GET_CX_CNT: {
 			if (target_vm->pm.cx_cnt != 0U) {
 				ret = copy_to_gpa(vm, &(target_vm->pm.cx_cnt), param, sizeof(target_vm->pm.cx_cnt));
 			}
 			break;
 		}
-		case PMCMD_GET_CX_DATA: {
+		case ACRN_PMCMD_GET_CX_DATA: {
 			uint8_t cx_idx;
 			struct cpu_cx_data *cx_data;
 

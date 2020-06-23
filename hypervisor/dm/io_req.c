@@ -7,6 +7,7 @@
 #include <irq.h>
 #include <errno.h>
 #include <logmsg.h>
+#include <sprintf.h>
 
 #define DBG_LEVEL_IOREQ	6U
 

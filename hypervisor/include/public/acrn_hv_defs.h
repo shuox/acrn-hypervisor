@@ -303,26 +303,6 @@ struct acrn_assign_pcidev {
 } __attribute__((aligned(8)));
 
 /**
- * @brief Info to assign or deassign a MMIO device for a VM
- *
- * the parameter for HC_ASSIGN_MMIODEV or HC_DEASSIGN_MMIODEV hypercall
- */
-struct acrn_mmiodev {
-	/** the gpa of the MMIO region for the MMIO device */
-	uint64_t base_gpa;
-
-	/** the hpa of the MMIO region for the MMIO device */
-	uint64_t base_hpa;
-
-	/** the size of the MMIO region for the MMIO device */
-	uint64_t size;
-
-	/** reserved for extension */
-	uint64_t reserved[13];
-
-} __attribute__((aligned(8)));
-
-/**
  * Hypervisor api version info, return it for HC_GET_API_VERSION hypercall
  */
 struct hc_api_version {
