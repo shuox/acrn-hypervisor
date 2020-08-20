@@ -16,16 +16,18 @@
 #define MAX_CMD_LEN		64
 
 static const char * const cmd_list[] = {
-	"uart=disabled",	/* to disable uart */
 	"uart=port@",		/* like uart=port@0x3F8 */
 	"uart=bdf@",	/*like: uart=bdf@0:18.2, it is for ttyS2 */
+	"uart=mmio@",	/* uart=mmio@0xfe040000, it's MMIO uart */
+	"uart=disabled",	/* to disable uart */
 };
 
+/* NOTE: Need to match the port type definition in uart16550.c */
 enum IDX_CMD_DBG {
-	IDX_DISABLE_UART,
 	IDX_PORT_UART,
 	IDX_PCI_UART,
-
+	IDX_MMIO_UART,
+	IDX_DISABLE_UART,
 	IDX_MAX_CMD,
 };
 
@@ -46,7 +48,7 @@ bool handle_dbg_cmd(const char *cmd, int32_t len)
 
 		if (i == IDX_DISABLE_UART) {
 			/* set uart disabled*/
-			uart16550_set_property(false, false, 0UL);
+			uart16550_set_property(false, i, 0UL);
 		} else if (i == IDX_PORT_UART) {
 			uint64_t addr = strtoul_hex(cmd + tmp);
 
@@ -54,12 +56,12 @@ bool handle_dbg_cmd(const char *cmd, int32_t len)
 				addr = DEFAULT_UART_PORT;
 			}
 
-			uart16550_set_property(true, true, addr);
-
+			uart16550_set_property(true, i, addr);
 		} else if (i == IDX_PCI_UART) {
-			uart16550_set_property(true, false, (uint64_t)(cmd+tmp));
+			uart16550_set_property(true, i, (uint64_t)(cmd+tmp));
 		} else {
-			/* No other state currently, do nothing */
+			uint64_t addr = strtoul_hex(cmd + tmp);
+			uart16550_set_property(true, i, addr);
 		}
 	}
 
