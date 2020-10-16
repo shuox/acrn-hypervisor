@@ -78,6 +78,17 @@ void vcpu_thread(struct thread_object *obj)
 	} while (1);
 }
 
+#if 0
+void worker_thread(struct thread_object *obj)
+{
+	uint16_t pcpu_id = get_pcpu_id();
+
+	if (need_shutdown_vm(pcpu_id)) {
+		shutdown_vm_from_idle(pcpu_id);
+	}
+}
+#endif
+
 void default_idle(__unused struct thread_object *obj)
 {
 	uint16_t pcpu_id = get_pcpu_id();
@@ -106,6 +117,7 @@ void run_idle_thread(void)
 	snprintf(idle_name, 16U, "idle%hu", pcpu_id);
 	(void)strncpy_s(idle->name, 16U, idle_name, 16U);
 	idle->pcpu_id = pcpu_id;
+	idle->sched_ctl = &per_cpu(sched_ctl, pcpu_id);
 	idle->thread_entry = default_idle;
 	idle->switch_out = NULL;
 	idle->switch_in = NULL;

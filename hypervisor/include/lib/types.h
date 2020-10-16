@@ -43,6 +43,10 @@ typedef _Bool bool;
 #define UINT64_MAX	(0xffffffffffffffffUL)
 #endif
 
+#ifndef INT64_MAX
+#define INT64_MAX	(0x7fffffffffffffffUL)
+#endif
+
 #ifndef UINT32_MAX
 #define UINT32_MAX	(0xffffffffU)
 #endif

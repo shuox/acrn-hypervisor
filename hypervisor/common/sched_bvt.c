@@ -60,21 +60,16 @@ static void runqueue_add(struct thread_object *obj)
 	 * the earliest evt has highest priority,
 	 * the runqueue is ordered by priority.
 	 */
-
-	if (list_empty(&bvt_ctl->runqueue)) {
-		list_add(&data->list, &bvt_ctl->runqueue);
-	} else {
-		list_for_each(pos, &bvt_ctl->runqueue) {
-			iter_obj = container_of(pos, struct thread_object, data);
-			iter_data = (struct sched_bvt_data *)iter_obj->data;
-			if (iter_data->evt > data->evt) {
-				list_add_node(&data->list, pos->prev, pos);
-				break;
-			}
+	list_for_each(pos, &bvt_ctl->runqueue) {
+		iter_obj = container_of(pos, struct thread_object, data);
+		iter_data = (struct sched_bvt_data *)iter_obj->data;
+		if (iter_data->evt > data->evt) {
+			list_add_node(&data->list, pos->prev, pos);
+			break;
 		}
-		if (!is_inqueue(obj)) {
-			list_add_tail(&data->list, &bvt_ctl->runqueue);
-		}
+	}
+	if (!is_inqueue(obj)) {
+		list_add_tail(&data->list, &bvt_ctl->runqueue);
 	}
 }
 
@@ -107,8 +102,10 @@ static int64_t get_svt(struct thread_object *obj)
 
 	if (!list_empty(&bvt_ctl->runqueue)) {
 		tmp_obj = get_first_item(&bvt_ctl->runqueue, struct thread_object, data);
-		obj_data = (struct sched_bvt_data *)tmp_obj->data;
-		svt = obj_data->avt;
+		if (!is_idle_thread(tmp_obj)) {
+			obj_data = (struct sched_bvt_data *)tmp_obj->data;
+			svt = obj_data->avt;
+		}
 	}
 	return svt;
 }
@@ -134,7 +131,7 @@ static void sched_tick_handler(void *param)
 				make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 			}
 		} else {
-			if (!list_empty(&bvt_ctl->runqueue)) {
+			if (!is_idle_thread(get_first_item(&bvt_ctl->runqueue, struct thread_object, data))) {
 				make_reschedule_request(pcpu_id, DEL_MODE_IPI);
 			}
 		}
@@ -185,6 +182,9 @@ static void sched_bvt_init_data(struct thread_object *obj)
 	data->vt_ratio = 1U;
 	data->residual = 0U;
 	data->run_countdown = BVT_CSA_MCU;
+	if (is_idle_thread(obj)) {
+		data->avt = INT64_MAX;
+	}
 }
 
 static uint64_t v2p(uint64_t virt_time, uint64_t ratio)
@@ -236,35 +236,31 @@ static struct thread_object *sched_bvt_pick_next(struct sched_control *ctl)
 		update_vt(current);
 	}
 
-	if (!list_empty(&bvt_ctl->runqueue)) {
-		first = bvt_ctl->runqueue.next;
-		sec = (first->next == &bvt_ctl->runqueue) ? NULL : first->next;
+	first = bvt_ctl->runqueue.next;
+	sec = (first->next == &bvt_ctl->runqueue) ? NULL : first->next;
 
-		first_obj = container_of(first, struct thread_object, data);
-		first_data = (struct sched_bvt_data *)first_obj->data;
+	first_obj = container_of(first, struct thread_object, data);
+	first_data = (struct sched_bvt_data *)first_obj->data;
 
-		/* The run_countdown is used to store how may mcu the next thread
-		 * can run for. It is set in pick_next handler, and decreases in
-		 * tick handler. Normally, the next thread can run until its AVT
-		 * is ahead of the next runnable thread for one CSA
-		 * (context switch allowance). But when there is only one object
-		 * in runqueue, it can run forever. so, set a very very large
-		 * number to it so that it can run for a long time. Here,
-		 * UINT64_MAX can make it run for >100 years before rescheduled.
-		 */
-		if (sec != NULL) {
-			second_obj = container_of(sec, struct thread_object, data);
-			second_data = (struct sched_bvt_data *)second_obj->data;
-			delta_mcu = second_data->evt - first_data->evt;
-			first_data->run_countdown = v2p(delta_mcu, first_data->vt_ratio) + BVT_CSA_MCU;
-		} else {
-			first_data->run_countdown = UINT64_MAX;
-		}
-		first_data->start_tsc = now_tsc;
-		next = first_obj;
+	/* The run_countdown is used to store how may mcu the next thread
+	 * can run for. It is set in pick_next handler, and decreases in
+	 * tick handler. Normally, the next thread can run until its AVT
+	 * is ahead of the next runnable thread for one CSA
+	 * (context switch allowance). But when there is only one object
+	 * in runqueue, it can run forever. so, set a very very large
+	 * number to it so that it can run for a long time. Here,
+	 * UINT64_MAX can make it run for >100 years before rescheduled.
+	 */
+	if (sec != NULL) {
+		second_obj = container_of(sec, struct thread_object, data);
+		second_data = (struct sched_bvt_data *)second_obj->data;
+		delta_mcu = second_data->evt - first_data->evt;
+		first_data->run_countdown = v2p(delta_mcu, first_data->vt_ratio) + BVT_CSA_MCU;
 	} else {
-		next = &get_cpu_var(idle);
+		first_data->run_countdown = UINT64_MAX;
 	}
+	first_data->start_tsc = now_tsc;
+	next = first_obj;
 
 	return next;
 }

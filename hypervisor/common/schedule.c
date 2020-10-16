@@ -246,14 +246,11 @@ void yield_current(void)
 
 void run_thread(struct thread_object *obj)
 {
-	uint64_t rflag;
-
+	struct sched_control *ctl = &per_cpu(sched_ctl, obj->pcpu_id);
 	init_thread_data(obj);
-	obtain_schedule_lock(obj->pcpu_id, &rflag);
-	get_cpu_var(sched_ctl).curr_obj = obj;
-	set_thread_status(obj, THREAD_STS_RUNNING);
-	release_schedule_lock(obj->pcpu_id, rflag);
+	wake_thread(obj);
 
+	ctl->curr_obj = obj;
 	if (obj->thread_entry != NULL) {
 		obj->thread_entry(obj);
 	}
