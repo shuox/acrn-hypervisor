@@ -213,7 +213,19 @@ ptirq_build_physical_rte(struct acrn_vm *vm, struct ptirq_remapping_info *entry)
 		}
 
 		/* update physical delivery mode, dest mode(logical) & vector */
-		vector = irq_to_vector(phys_irq);
+		if (is_lapic_pt_configured(vm)) {
+			/*
+			 * the virtual vectors of vioapic and physical ioapic
+			 * need to keep identical mapping.
+			 *
+			 * assuming IOAPIC pins won't be shared between LAPIC PT guest
+			 * and other guests.
+			 */
+			vector = rte.bits.vector;
+		} else {
+			vector = irq_to_vector(phys_irq);
+		}
+
 		dest_mask = calculate_logical_dest_mask(pdmask);
 
 		irte.value.lo_64 = 0UL;
