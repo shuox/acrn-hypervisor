@@ -44,7 +44,7 @@ static void init_debug_pre(void)
 /*TODO: move into debug module */
 static void init_debug_post(uint16_t pcpu_id)
 {
-	if (pcpu_id == BSP_CPU_ID) {
+	if (pcpu_id == CONFIG_CONSOLE_TIMER_CPU_ID) {
 		/* Initialize the shell */
 		shell_init();
 		console_setup_timer();
