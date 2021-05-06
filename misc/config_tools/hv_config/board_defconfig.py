@@ -182,6 +182,8 @@ def get_capacities(hv_info, config):
 
 def get_log_opt(hv_info, config):
 
+    console_timer_cpu_id = common.get_hv_item_tag(common.SCENARIO_INFO_FILE, "DEBUG_OPTIONS", "CONSOLE_TIMER_CPU_ID")
+    print("CONFIG_CONSOLE_TIMER_CPU_ID={}".format(console_timer_cpu_id), file=config)
     print("CONFIG_LOG_BUF_SIZE={}".format(hv_info.log.buf_size), file=config)
     print("CONFIG_NPK_LOGLEVEL_DEFAULT={}".format(hv_info.log.level.npk), file=config)
     print("CONFIG_MEM_LOGLEVEL_DEFAULT={}".format(hv_info.log.level.mem), file=config)

@@ -35,6 +35,10 @@
       <xsl:with-param name="key" select="'RELEASE'" />
     </xsl:call-template>
 
+    <xsl:call-template name="integer-by-key">
+      <xsl:with-param name="key" select="'CONSOLE_TIMER_CPU_ID'" />
+    </xsl:call-template>
+
     <xsl:call-template name="integer-by-key-value">
       <xsl:with-param name="key" select="'MEM_LOGLEVEL_DEFAULT'" />
       <xsl:with-param name="value" select="MEM_LOGLEVEL" />

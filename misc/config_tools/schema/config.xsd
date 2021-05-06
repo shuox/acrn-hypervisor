@@ -30,6 +30,13 @@ enabled. Leave this field empty if the Service VM's :ref:`vm.console_vuart` is e
 configuration.</xs:documentation>
       </xs:annotation>
     </xs:element>
+    <xs:element name="CONSOLE_TIMER_CPU_ID" type="xs:integer" default="0">
+      <xs:annotation>
+        <xs:documentation>Specify the pCPU ID that will provide the timer interrupt for
+hypervisor console. A pCPU whose LAPIC passthrough can not be chosen for this purpose.
+</xs:documentation>
+      </xs:annotation>
+    </xs:element>
     <xs:element name="MEM_LOGLEVEL" type="LogLevelType" default="5">
       <xs:annotation>
         <xs:documentation>Default loglevel for log messages stored in
