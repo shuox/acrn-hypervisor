@@ -37,6 +37,7 @@
 #include <asm/guest/assign.h>
 #include <logmsg.h>
 #include <asm/ioapic.h>
+#include <asm/lapic.h>
 
 #define	RTBL_RO_BITS	((uint32_t)0x00004000U | (uint32_t)0x00001000U) /*Remote IRR and Delivery Status bits*/
 
@@ -78,7 +79,18 @@ vioapic_generate_intr(struct acrn_single_vioapic *vioapic, uint32_t pin)
 			}
 			vector = rte.bits.vector;
 			dest = rte.bits.dest_field;
-			vlapic_receive_intr(vioapic->vm, level, dest, phys, delmode, vector, false);
+
+			if (is_lapic_pt_configured(vioapic->vm)) {
+				uint64_t dest_mask = 0UL;
+				dest_mask = vlapic_calc_dest_noshort(vioapic->vm, false,
+					rte.bits.dest_field, phys,
+					rte.bits.delivery_mode == MSI_DATA_DELMODE_LOPRI);
+
+				/* TODO: send_dest_ipi_mask() limits the number of vCPUs to 32 */
+				send_dest_ipi_mask((uint32_t)dest_mask, rte.bits.vector);
+			} else {
+				vlapic_receive_intr(vioapic->vm, level, dest, phys, delmode, vector, false);
+			}
 		}
 	}
 }
