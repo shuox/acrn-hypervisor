@@ -272,6 +272,7 @@ static const uint32_t vmcs_shadowing_fields[MAX_SHADOW_VMCS_FIELDS] = {
 	VMX_TSC_OFFSET_FULL,
 	VMX_VIRTUAL_APIC_PAGE_ADDR_FULL,
 	VMX_APIC_ACCESS_ADDR_FULL,
+	//VMX_EPT_POINTER_FULL,
 	VMX_VMREAD_BITMAP_FULL,
 	VMX_VMWRITE_BITMAP_FULL,
 	VMX_XSS_EXITING_BITMAP_FULL,
@@ -1339,9 +1340,11 @@ int32_t nested_vmexit_handler(struct acrn_vcpu *vcpu)
 	struct acrn_vmcs12 *vmcs12 = (struct acrn_vmcs12 *)&vcpu->arch.nested.vmcs12;
 	bool is_l1_vmexit = true;
 
+#if 1
 	if ((exec_vmread(VMX_EXIT_REASON) & 0xFFFFU) == VMX_EXIT_REASON_EPT_VIOLATION) {
 		is_l1_vmexit = handle_l2_ept_violation(vcpu);
 	}
+#endif
 
 	if (is_l1_vmexit) {
 		/*
@@ -1392,6 +1395,7 @@ static void merge_and_sync_control_fields(struct acrn_vcpu *vcpu)
 		vcpu->arch.nested.gpa_field_dirty = false;
 		exec_vmwrite(VMX_MSR_BITMAP_FULL, gpa2hpa(vcpu->vm, vmcs12->msr_bitmap));
 		exec_vmwrite(VMX_EPT_POINTER_FULL, get_shadow_eptp(vmcs12->ept_pointer));
+		//exec_vmwrite(VMX_EPT_POINTER_FULL, vmcs12->ept_pointer);
 	}
 
 	/* for VM-execution, VM-exit, VM-entry control fields */

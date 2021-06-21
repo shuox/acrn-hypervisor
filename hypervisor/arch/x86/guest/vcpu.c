@@ -534,6 +534,7 @@ int32_t create_vcpu(uint16_t pcpu_id, struct acrn_vm *vm, struct acrn_vcpu **rtn
 		 * This assignment guarantees a unique non-zero per vcpu vpid at runtime.
 		 */
 		vcpu->arch.vpid = 1U + (vm->vm_id * MAX_VCPUS_PER_VM) + vcpu->vcpu_id;
+		//vcpu->arch.vpid = 0x2000U + (vm->vm_id * MAX_VCPUS_PER_VM) + vcpu->vcpu_id;
 
 		/*
 		 * ACRN uses the following approach to manage VT-d PI notification vectors:
@@ -642,7 +643,8 @@ int32_t run_vcpu(struct acrn_vcpu *vcpu)
 		 * A power-up or a reset invalidates all linear mappings,
 		 * guest-physical mappings, and combined mappings
 		 */
-		flush_vpid_global();
+		//if (!is_vcpu_in_l2_guest(vcpu))
+			flush_vpid_global();
 
 #ifdef CONFIG_HYPERV_ENABLED
 		if (is_vcpu_bsp(vcpu)) {

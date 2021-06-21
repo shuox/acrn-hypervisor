@@ -440,6 +440,10 @@ bool handle_l2_ept_violation(struct acrn_vcpu *vcpu)
 
 		/* Shadow EPT entry exists */
 		if (is_leaf_ept_entry(guest_ept_entry, pt_level)) {
+
+			shadow_ept_entry = generate_shadow_ept_entry(vcpu, guest_ept_entry, pt_level);
+			p_shadow_ept_page[offset] = shadow_ept_entry;
+
 			/* Shadow EPT is set up, let L2 VM re-execute the instruction. */
 			if ((exec_vmread32(VMX_IDT_VEC_INFO_FIELD) & VMX_INT_INFO_VALID) == 0U) {
 				is_l1_vmexit = false;
@@ -498,13 +502,15 @@ int32_t invept_vmexit_handler(struct acrn_vcpu *vcpu)
 			 * Invalidate all shadow EPTPs of L1 VM
 			 * TODO: Invalidating all L2 vCPU associated EPTPs is enough. How?
 			 */
+#if 1
 			for (i = 0L; i < CONFIG_MAX_GUEST_EPT_NUM; i++) {
 				if (nept_desc_bucket[i].guest_eptp != 0UL) {
 					desc = &nept_desc_bucket[i];
-					free_sept_table((void *)(desc->shadow_eptp & PAGE_MASK));
+//					free_sept_table((void *)(desc->shadow_eptp & PAGE_MASK));
 					invept((void *)(desc->shadow_eptp & PAGE_MASK));
 				}
 			}
+#endif
 			spinlock_release(&nept_desc_bucket_lock);
 			nested_vmx_result(VMsucceed, 0);
 		} else {
