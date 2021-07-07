@@ -265,7 +265,7 @@ Data Structures and Interfaces
 External Interfaces
 ===================
 
-The following structures represent an I/O request. *struct vhm_request*
+The following structures represent an I/O request. *struct acrn_io_request*
 is the main structure and the others are detailed representations of I/O
 requests of different kinds.
 
