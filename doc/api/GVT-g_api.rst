@@ -31,19 +31,19 @@ and the `Graphics Execution Manager(GEM)`_ parts of `i915 driver`_.
 Intel GVT-g Guest Support (vGPU)
 ================================
 
-.. kernel-doc:: drivers/gpu/drm/i915/vgpu.c
+.. kernel-doc:: drivers/gpu/drm/i915/gvt/vgpu.c
    :doc: Intel GVT-g guest support
 
-.. kernel-doc:: drivers/gpu/drm/i915/vgpu.c
+.. kernel-doc:: drivers/gpu/drm/i915/gvt/vgpu.c
    :internal:
 
 Intel GVT-g Host Support (vGPU Device Model)
 ============================================
 
-.. kernel-doc:: drivers/gpu/drm/i915/gvt.c
+.. kernel-doc:: drivers/gpu/drm/i915/gvt/gvt.c
    :doc: Intel GVT-g host support
 
-.. kernel-doc:: drivers/gpu/drm/i915/gvt.c
+.. kernel-doc:: drivers/gpu/drm/i915/gvt/gvt.c
    :internal:
 
 
