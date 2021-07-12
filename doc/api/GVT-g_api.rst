@@ -31,23 +31,23 @@ and the `Graphics Execution Manager(GEM)`_ parts of `i915 driver`_.
 Intel GVT-g Guest Support (vGPU)
 ================================
 
-.. kernel-doc:: drivers/gpu/drm/i915/i915_vgpu.c
+.. kernel-doc:: drivers/gpu/drm/i915/vgpu.c
    :doc: Intel GVT-g guest support
 
-.. kernel-doc:: drivers/gpu/drm/i915/i915_vgpu.c
+.. kernel-doc:: drivers/gpu/drm/i915/vgpu.c
    :internal:
 
 Intel GVT-g Host Support (vGPU Device Model)
 ============================================
 
-.. kernel-doc:: drivers/gpu/drm/i915/intel_gvt.c
+.. kernel-doc:: drivers/gpu/drm/i915/gvt.c
    :doc: Intel GVT-g host support
 
-.. kernel-doc:: drivers/gpu/drm/i915/intel_gvt.c
+.. kernel-doc:: drivers/gpu/drm/i915/gvt.c
    :internal:
 
 
-VHM APIs Called From AcrnGT
+VHM APIs Called From AcrnGT (obsolete)
 ****************************
 
 The Virtio and Hypervisor Service Module (VHM) is a kernel module in the
@@ -64,26 +64,9 @@ such as for the remote memory map, or invoke hypercall. VHM also sends I/O
 responses to user space modules, notified by vIRQ injections.
 
 
-.. kernel-doc:: include/linux/vhm/vhm_vm_mngt.h
-   :functions: put_vm
-               vhm_get_vm_info
-               vhm_inject_msi
-               vhm_vm_gpa2hpa
-
-.. kernel-doc:: include/linux/vhm/acrn_vhm_ioreq.h
-   :internal:
-
-.. kernel-doc:: include/linux/vhm/acrn_vhm_mm.h
-   :functions: acrn_hpa2gpa
-               map_guest_phys
-               unmap_guest_phys
-               add_memory_region
-               del_memory_region
-               write_protect_page
-
 .. _MPT_interface:
 
-AcrnGT Mediated Passthrough (MPT) Interface
+AcrnGT Mediated Passthrough (MPT) Interface (obsolete)
 *******************************************
 
 AcrnGT receives request from GVT module through MPT interface. Refer to the
