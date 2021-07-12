@@ -48,7 +48,7 @@ Intel GVT-g Host Support (vGPU Device Model)
 
 
 VHM APIs Called From AcrnGT (obsolete)
-****************************
+**************************************
 
 The Virtio and Hypervisor Service Module (VHM) is a kernel module in the
 Service OS acting as a middle layer to support the device model. (See the
@@ -67,7 +67,7 @@ responses to user space modules, notified by vIRQ injections.
 .. _MPT_interface:
 
 AcrnGT Mediated Passthrough (MPT) Interface (obsolete)
-*******************************************
+******************************************************
 
 AcrnGT receives request from GVT module through MPT interface. Refer to the
 :ref:`Graphic_mediation` page.
